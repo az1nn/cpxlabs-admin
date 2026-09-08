@@ -67,7 +67,7 @@ async function listCustomers<T>(params: ListParams): Promise<ListResult<T>> {
 }
 
 export const demoDataProvider: DataProvider = {
-  async getList<T>(resource, params) {
+  async getList<T>(resource: string, params: ListParams): Promise<ListResult<T>> {
     if (resource === 'customers') {
       return listCustomers<T>(params)
     }
@@ -75,19 +75,19 @@ export const demoDataProvider: DataProvider = {
     throw new Error(`Demo provider does not implement resource: ${resource}`)
   },
 
-  async getOne() {
+  async getOne<T>(_resource: string, _id: string): Promise<T> {
     throw new Error('Demo provider getOne is not implemented yet')
   },
 
-  async create() {
+  async create<T>(_resource: string, _input: unknown): Promise<T> {
     throw new Error('Demo provider create is not implemented yet')
   },
 
-  async update() {
+  async update<T>(_resource: string, _id: string, _input: unknown): Promise<T> {
     throw new Error('Demo provider update is not implemented yet')
   },
 
-  async delete() {
+  async delete(_resource: string, _id: string): Promise<void> {
     throw new Error('Demo provider delete is not implemented yet')
   },
 }

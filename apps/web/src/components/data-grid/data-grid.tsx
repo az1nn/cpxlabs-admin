@@ -1,15 +1,23 @@
-import { tableFeatures, useTable, type ColumnDef } from '@tanstack/react-table'
+import {
+  tableFeatures,
+  useTable,
+  type ColumnDef,
+  type RowData,
+} from '@tanstack/react-table'
 
 const dataGridFeatures = tableFeatures({})
 
-export type DataGridColumnDef<TData> = ColumnDef<typeof dataGridFeatures, TData>
+export type DataGridColumnDef<TData extends RowData> = ColumnDef<
+  typeof dataGridFeatures,
+  TData
+>
 
 export type DataGridSort = {
   field: string
   direction: 'asc' | 'desc'
 }
 
-type DataGridProps<TData> = {
+type DataGridProps<TData extends RowData> = {
   rows: TData[]
   columns: Array<DataGridColumnDef<TData>>
   rowCount: number
@@ -23,7 +31,7 @@ type DataGridProps<TData> = {
   onSortChange: (sort: DataGridSort) => void
 }
 
-export function DataGrid<TData>({
+export function DataGrid<TData extends RowData>({
   rows,
   columns,
   rowCount,
