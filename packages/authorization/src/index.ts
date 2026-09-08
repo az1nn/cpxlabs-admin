@@ -1,13 +1,47 @@
-import type { Capability } from '@cpxlabs-admin/contracts'
+import type { ApplicationRole, Capability } from '@cpxlabs-admin/contracts'
+
+const roleCapabilities = {
+  admin: new Set<Capability>([
+    'customers.read',
+    'customers.create',
+    'customers.edit',
+    'customers.delete',
+  ]),
+  manager: new Set<Capability>([
+    'customers.read',
+    'customers.create',
+    'customers.edit',
+  ]),
+  viewer: new Set<Capability>(['customers.read']),
+} satisfies Record<ApplicationRole, ReadonlySet<Capability>>
 
 export type Principal = {
   id: string
+  email: string
+  name: string
+  role: ApplicationRole
   capabilities: ReadonlySet<Capability>
+}
+
+export type RequestContext = {
+  principal: Principal
+  tenant?: string
 }
 
 export type AuthorizationDecision = {
   allowed: boolean
   capability: Capability
+}
+
+export function capabilitiesForRole(role: ApplicationRole): ReadonlySet<Capability> {
+  return roleCapabilities[role]
+}
+
+export function createPrincipal(input: Omit<Principal, 'capabilities'>): Principal {
+  return {
+    ...input,
+    capabilities: capabilitiesForRole(input.role),
+  }
 }
 
 export function can(principal: Principal | null, capability: Capability): boolean {

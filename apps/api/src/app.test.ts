@@ -1,15 +1,33 @@
+import { createPrincipal } from '@cpxlabs-admin/authorization'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildApp } from './app.js'
+import type { AuthorizationGuards } from './platform/authorization/guards.js'
 
 const apps: ReturnType<typeof buildApp>[] = []
+const adminContext = {
+  principal: createPrincipal({
+    id: 'test-admin',
+    email: 'test-admin@example.com',
+    name: 'Test Admin',
+    role: 'admin',
+  }),
+}
+const allowAllAuthorization: AuthorizationGuards = {
+  async requirePrincipal() {
+    return adminContext
+  },
+  async requireCapability() {
+    return adminContext
+  },
+}
 
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()))
 })
 
 function createApp() {
-  const app = buildApp()
+  const app = buildApp({ authorization: allowAllAuthorization })
   apps.push(app)
   return app
 }
@@ -75,5 +93,18 @@ describe('reference API', () => {
 
     expect(response.statusCode).toBe(400)
     expect(response.json()).toMatchObject({ error: { code: 'validation' } })
+  })
+
+  it('fails closed when authorization is not configured', async () => {
+    const app = buildApp()
+    apps.push(app)
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/customers?page=1&pageSize=25',
+    })
+    expect(response.statusCode).toBe(401)
+    expect(response.json()).toMatchObject({
+      error: { code: 'AUTHENTICATION_REQUIRED' },
+    })
   })
 })
