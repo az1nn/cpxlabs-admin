@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 export type FormFieldProps = {
   label: string
   htmlFor: string
-  error?: string
-  description?: string
+  error?: string | undefined
+  description?: string | undefined
   children: ReactNode
 }
 
