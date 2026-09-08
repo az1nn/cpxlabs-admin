@@ -5,6 +5,19 @@ import type {
   CustomerListParams,
 } from './customer.types.js'
 
+export type CustomerListResult = {
+  data: Customer[]
+  total: number
+}
+
+export interface CustomerRepository {
+  list(params: CustomerListParams): Promise<CustomerListResult>
+  get(id: string): Promise<Customer>
+  create(input: CustomerInput): Promise<Customer>
+  update(id: string, input: CustomerInput): Promise<Customer>
+  delete(id: string): Promise<void>
+}
+
 const seedCustomers: Customer[] = [
   {
     id: 'cus_001',
@@ -28,11 +41,11 @@ function compareCustomers(left: Customer, right: Customer, field: NonNullable<Cu
   return left[field].localeCompare(right[field])
 }
 
-export class InMemoryCustomerRepository {
+export class InMemoryCustomerRepository implements CustomerRepository {
   private customers = seedCustomers.map((customer) => ({ ...customer }))
   private sequence = 100
 
-  list(params: CustomerListParams) {
+  async list(params: CustomerListParams): Promise<CustomerListResult> {
     let result = [...this.customers]
     const search = params.search?.trim().toLocaleLowerCase()
 
@@ -58,7 +71,7 @@ export class InMemoryCustomerRepository {
     return { data: result.slice(offset, offset + params.pageSize), total }
   }
 
-  get(id: string): Customer {
+  async get(id: string): Promise<Customer> {
     const customer = this.customers.find((candidate) => candidate.id === id)
     if (!customer) {
       throw new AppError({ code: 'not_found', statusCode: 404, message: 'Customer not found' })
@@ -66,7 +79,7 @@ export class InMemoryCustomerRepository {
     return customer
   }
 
-  create(input: CustomerInput): Customer {
+  async create(input: CustomerInput): Promise<Customer> {
     const customer: Customer = {
       id: `cus_${++this.sequence}`,
       ...input,
@@ -76,8 +89,8 @@ export class InMemoryCustomerRepository {
     return customer
   }
 
-  update(id: string, input: CustomerInput): Customer {
-    this.get(id)
+  async update(id: string, input: CustomerInput): Promise<Customer> {
+    await this.get(id)
     const customer: Customer = {
       id,
       ...input,
@@ -87,8 +100,8 @@ export class InMemoryCustomerRepository {
     return customer
   }
 
-  delete(id: string): void {
-    this.get(id)
+  async delete(id: string): Promise<void> {
+    await this.get(id)
     this.customers = this.customers.filter((candidate) => candidate.id !== id)
   }
 }
