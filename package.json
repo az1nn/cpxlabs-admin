@@ -7,7 +7,11 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "lint": "turbo run lint"
+    "lint": "turbo run lint",
+    "storybook": "pnpm --filter @cpxlabs-admin/storybook storybook",
+    "storybook:build": "pnpm --filter @cpxlabs-admin/storybook build",
+    "test:storybook": "pnpm --filter @cpxlabs-admin/storybook test:stories",
+    "e2e": "pnpm --filter @cpxlabs-admin/web e2e"
   },
   "devDependencies": {
     "turbo": "^2.5.0"

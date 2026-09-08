@@ -3,6 +3,9 @@ node_modules/
 .turbo/
 dist/
 coverage/
+storybook-static/
+playwright-report/
+test-results/
 .env
 .env.*
 !.env.example
