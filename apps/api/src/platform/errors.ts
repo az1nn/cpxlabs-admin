@@ -1,5 +1,5 @@
 import type { ApiErrorCode, ApiErrorEnvelope } from '@cpxlabs-admin/contracts'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyError, FastifyInstance } from 'fastify'
 
 export class AppError extends Error {
   readonly code: ApiErrorCode
@@ -21,7 +21,7 @@ export class AppError extends Error {
 }
 
 export function installErrorHandler(app: FastifyInstance) {
-  app.setErrorHandler((error, request, reply) => {
+  app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error.validation) {
       const body: ApiErrorEnvelope = {
         error: {
