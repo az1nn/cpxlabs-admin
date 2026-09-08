@@ -21,7 +21,7 @@ describe('HttpDataProvider', () => {
     })
 
     const requestUrl = String(fetcher.mock.calls[0]?.[0])
-    const url = new URL(requestUrl)
+    const url = new URL(requestUrl, 'http://test.local')
     expect(url.pathname).toBe('/api/customers')
     expect(Object.fromEntries(url.searchParams)).toEqual({
       page: '2',
