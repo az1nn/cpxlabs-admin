@@ -1,0 +1,11 @@
+{
+  "name": "@cpxlabs-admin/authorization",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cpxlabs-admin/contracts": "workspace:*"
+  }
+}

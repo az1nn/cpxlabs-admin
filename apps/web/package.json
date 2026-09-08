@@ -1,0 +1,29 @@
+{
+  "name": "@cpxlabs-admin/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run --passWithNoTests",
+    "lint": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-router": "^1.170.32",
+    "@tanstack/react-table": "^9.2.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-hook-form": "^7.87.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.10"
+  }
+}
