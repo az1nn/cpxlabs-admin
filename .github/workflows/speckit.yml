@@ -1,0 +1,56 @@
+name: Spec Kit
+
+on:
+  push:
+    paths:
+      - '.specify/**'
+      - '.agents/**'
+      - '.opencode/**'
+      - 'specs/**'
+      - 'AGENTS.md'
+      - 'docs/development/spec-kit.md'
+      - 'docs/adr/0012-spec-kit-development-workflow.md'
+      - '.github/workflows/speckit.yml'
+  pull_request:
+    paths:
+      - '.specify/**'
+      - '.agents/**'
+      - '.opencode/**'
+      - 'specs/**'
+      - 'AGENTS.md'
+      - 'docs/development/spec-kit.md'
+      - 'docs/adr/0012-spec-kit-development-workflow.md'
+      - '.github/workflows/speckit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Install pinned Spec Kit
+        run: python -m pip install 'git+https://github.com/github/spec-kit.git@v1.0.4'
+
+      - name: Validate Spec Kit integration state
+        run: specify integration status --json
+
+      - name: Validate historical spec artifact shape
+        run: |
+          for feature in \
+            specs/001-foundation \
+            specs/002-design-system-crud \
+            specs/003-testing-accessibility \
+            specs/004-http-api-persistence; do
+            test -f "$feature/spec.md"
+            test -f "$feature/plan.md"
+            test -f "$feature/tasks.md"
+          done
