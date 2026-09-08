@@ -5,8 +5,8 @@ import { createRoot } from 'react-dom/client'
 
 import { AuthorizationProvider } from './platform/authorization/authorization-provider'
 import { demoPrincipal } from './platform/authorization/demo-principal'
+import { appDataProvider } from './platform/data/app-data-provider'
 import { DataProviderProvider } from './platform/data/data-provider-context'
-import { demoDataProvider } from './platform/data/demo-data-provider'
 import { router } from './router'
 import './styles.css'
 
@@ -28,7 +28,7 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <DataProviderProvider provider={demoDataProvider}>
+      <DataProviderProvider provider={appDataProvider}>
         <AuthorizationProvider principal={demoPrincipal}>
           <RouterProvider router={router} />
         </AuthorizationProvider>

@@ -19,10 +19,29 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'pnpm build && pnpm exec vite preview --host 127.0.0.1 --port 4173',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      name: 'Fastify API',
+      cwd: '../api',
+      command: 'pnpm build && pnpm start',
+      url: 'http://127.0.0.1:3001/health',
+      env: {
+        HOST: '127.0.0.1',
+        PORT: '3001',
+      },
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      name: 'Vite web',
+      command: 'pnpm build && pnpm exec vite preview --host 127.0.0.1 --port 4173 --strictPort',
+      url: 'http://127.0.0.1:4173',
+      env: {
+        VITE_DATA_PROVIDER: 'http',
+        VITE_API_BASE_URL: '/api',
+      },
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+  ],
 })

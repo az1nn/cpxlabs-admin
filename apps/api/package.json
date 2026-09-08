@@ -1,0 +1,34 @@
+{
+  "name": "@cpxlabs-admin/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:seed": "pnpm db:generate && tsx src/platform/database/seed.ts",
+    "db:studio": "prisma studio",
+    "prebuild": "pnpm db:generate",
+    "build": "tsc -p tsconfig.json",
+    "pretypecheck": "pnpm db:generate",
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
+    "pretest": "pnpm db:generate",
+    "test": "vitest run --passWithNoTests",
+    "lint": "tsc -p tsconfig.json --noEmit --pretty false",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@cpxlabs-admin/contracts": "workspace:*",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
+    "fastify": "^5.12.1",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "prisma": "7.10.0",
+    "tsx": "^4.20.6",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}
