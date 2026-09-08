@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 
-import { InMemoryCustomerRepository } from './customer.repository.js'
+import type { CustomerRepository } from './customer.repository.js'
 import {
   customerInputSchema,
   customerListQuerySchema,
@@ -20,8 +20,12 @@ type CustomerListQuery = {
   'filter.status'?: CustomerStatus
 }
 
-export async function customerRoutes(app: FastifyInstance) {
-  const repository = new InMemoryCustomerRepository()
+export type CustomerRoutesOptions = {
+  repository: CustomerRepository
+}
+
+export async function customerRoutes(app: FastifyInstance, options: CustomerRoutesOptions) {
+  const { repository } = options
 
   app.get<{ Querystring: CustomerListQuery }>('/api/customers', {
     schema: {
@@ -53,7 +57,7 @@ export async function customerRoutes(app: FastifyInstance) {
       response: { 201: customerSchema },
     },
   }, async (request, reply) => {
-    const customer = repository.create(request.body)
+    const customer = await repository.create(request.body)
     return reply.status(201).send(customer)
   })
 
@@ -68,7 +72,7 @@ export async function customerRoutes(app: FastifyInstance) {
   app.delete<{ Params: CustomerParams }>('/api/customers/:customerId', {
     schema: { params: customerParamsSchema },
   }, async (request, reply) => {
-    repository.delete(request.params.customerId)
+    await repository.delete(request.params.customerId)
     return reply.status(204).send()
   })
 }
