@@ -1,4 +1,19 @@
+import { loadEnvFile } from 'node:process'
+
 import { defineConfig } from 'prisma/config'
+
+try {
+  loadEnvFile('.env')
+} catch (error) {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? error.code
+      : undefined
+
+  if (code !== 'ENOENT') {
+    throw error
+  }
+}
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
