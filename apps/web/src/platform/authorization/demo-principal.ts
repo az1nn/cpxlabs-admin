@@ -1,14 +1,8 @@
-import type { Principal } from '@cpxlabs-admin/authorization'
-import type { Capability } from '@cpxlabs-admin/contracts'
+import { createPrincipal } from '@cpxlabs-admin/authorization'
 
-const capabilities = new Set<Capability>([
-  'customers.read',
-  'customers.create',
-  'customers.update',
-  'customers.delete',
-])
-
-export const demoPrincipal: Principal = {
+export const demoPrincipal = createPrincipal({
   id: 'demo-admin',
-  capabilities,
-}
+  email: 'demo@cpxlabs.local',
+  name: 'Demo Admin',
+  role: 'admin',
+})
