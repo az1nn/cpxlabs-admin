@@ -1,6 +1,7 @@
 {
   "name": "cpxlabs-admin",
   "private": true,
+  "packageManager": "pnpm@10.34.5",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
