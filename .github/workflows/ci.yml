@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cpxlabs_admin
+      BETTER_AUTH_SECRET: cpxlabs-ci-better-auth-secret-0123456789abcdef
+      BETTER_AUTH_URL: http://127.0.0.1:3001
+      APP_ORIGIN: http://127.0.0.1:4173
+      SEED_AUTH_PASSWORD: TestAuthPass123!
     services:
       postgres:
         image: postgres:17
@@ -61,6 +65,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/cpxlabs_admin
+      BETTER_AUTH_SECRET: cpxlabs-ci-better-auth-secret-0123456789abcdef
+      BETTER_AUTH_URL: http://127.0.0.1:3001
+      APP_ORIGIN: http://127.0.0.1:4173
+      SEED_AUTH_PASSWORD: TestAuthPass123!
     services:
       postgres:
         image: postgres:17
