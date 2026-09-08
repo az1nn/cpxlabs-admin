@@ -75,7 +75,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
       response: { 200: customerSchema },
     },
   }, async (request) => {
-    await authorization.requireCapability(request, 'customers.edit')
+    await authorization.requireCapability(request, 'customers.update')
     return repository.update(request.params.customerId, request.body)
   })
 
