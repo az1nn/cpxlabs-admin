@@ -37,26 +37,26 @@ type HttpDataProviderOptions = {
 }
 
 function buildListUrl(baseUrl: string, resource: string, params: ListParams): string {
-  const url = new URL(`${baseUrl}/${encodeURIComponent(resource)}`, window.location.origin)
-  url.searchParams.set('page', String(params.page))
-  url.searchParams.set('pageSize', String(params.pageSize))
+  const searchParams = new URLSearchParams()
+  searchParams.set('page', String(params.page))
+  searchParams.set('pageSize', String(params.pageSize))
 
   if (params.search) {
-    url.searchParams.set('search', params.search)
+    searchParams.set('search', params.search)
   }
 
   if (params.sort) {
-    url.searchParams.set('sort', params.sort.field)
-    url.searchParams.set('direction', params.sort.direction)
+    searchParams.set('sort', params.sort.field)
+    searchParams.set('direction', params.sort.direction)
   }
 
   for (const [key, value] of Object.entries(params.filters ?? {})) {
     if (value !== undefined && value !== null) {
-      url.searchParams.set(`filter.${key}`, String(value))
+      searchParams.set(`filter.${key}`, String(value))
     }
   }
 
-  return url.toString()
+  return `${baseUrl}/${encodeURIComponent(resource)}?${searchParams.toString()}`
 }
 
 async function parseError(response: Response): Promise<HttpDataProviderError> {
