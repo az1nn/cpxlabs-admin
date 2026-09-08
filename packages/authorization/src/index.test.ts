@@ -7,13 +7,13 @@ describe('role capability policy', () => {
     expect([...capabilitiesForRole('admin')]).toEqual([
       'customers.read',
       'customers.create',
-      'customers.edit',
+      'customers.update',
       'customers.delete',
     ])
     expect([...capabilitiesForRole('manager')]).toEqual([
       'customers.read',
       'customers.create',
-      'customers.edit',
+      'customers.update',
     ])
     expect([...capabilitiesForRole('viewer')]).toEqual(['customers.read'])
   })
@@ -27,7 +27,7 @@ describe('role capability policy', () => {
       role: 'viewer',
     })
     expect(can(viewer, 'customers.read')).toBe(true)
-    expect(can(viewer, 'customers.edit')).toBe(false)
+    expect(can(viewer, 'customers.update')).toBe(false)
     expect(can(viewer, 'customers.delete')).toBe(false)
   })
 })
