@@ -36,7 +36,9 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .specify .agents .opencode .codex opencode.json 2>/dev/null || true
+          git add -f .specify .agents .opencode
+          if [ -d .codex ]; then git add -f .codex; fi
+          if [ -f opencode.json ]; then git add -f opencode.json; fi
           if git diff --cached --quiet; then
             echo 'No generated changes to commit.'
             exit 0
