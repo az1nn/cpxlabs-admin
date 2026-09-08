@@ -16,7 +16,7 @@ If a material feature has no active Spec Kit artifacts, create them before imple
 
 ## Spec Kit Commands
 
-Codex is the default integration and uses native skills:
+Codex is the versioned default integration and uses native skills:
 
 - `$speckit-constitution`
 - `$speckit-specify`
@@ -27,7 +27,7 @@ Codex is the default integration and uses native skills:
 - `$speckit-implement`
 - `$speckit-converge`
 
-OpenCode is also installed and exposes the corresponding `/speckit.*` commands.
+OpenCode is supported through the official Specify CLI integration switch, not simultaneous installation. Spec Kit v1.0.4 declares the OpenCode integration unsafe for multi-install alongside Codex. When working locally with OpenCode, switch to it with `specify integration switch opencode`, use the generated `/speckit.*` commands, then switch back to Codex before committing managed integration files.
 
 Specifications `001` through `004` are historical retrofits. New feature work starts through Spec Kit; do not use those historical files as evidence that the earlier implementation followed Spec Kit originally.
 

@@ -7,14 +7,14 @@
 
 The repository was developed with architecture-first documentation, ADRs, CI gates, and iterative reviews, but the implementation lifecycle was not actually managed by GitHub Spec Kit. This created a gap between the intended spec-driven process and the repository artifacts available to coding agents.
 
-The project is explicitly intended to support agent-driven implementation with Codex and OpenCode while preserving architecture constraints over time.
+The project is intended to support agent-driven implementation with Codex and OpenCode while preserving architecture constraints over time.
 
 ## Decision
 
 Adopt GitHub Spec Kit `v1.0.4` as the feature-development workflow.
 
-- Codex is the default Spec Kit integration using native skills under `.agents/skills/`.
-- OpenCode is installed as a secondary integration using `.opencode/commands/`.
+- Codex is the versioned default Spec Kit integration using native skills under `.agents/skills/`.
+- OpenCode remains a supported execution environment, but it is used through `specify integration switch opencode` rather than committed simultaneously. Spec Kit v1.0.4 reports OpenCode as unsafe for multi-install alongside Codex.
 - `.specify/` is generated and managed through the official Specify CLI.
 - The repository constitution lives at `.specify/memory/constitution.md`.
 - Material future features must use the Spec Kit lifecycle: specification, plan, tasks, implementation, and convergence.
@@ -27,16 +27,21 @@ Adopt GitHub Spec Kit `v1.0.4` as the feature-development workflow.
 
 - Agents receive explicit project governance and feature scope before implementation.
 - Requirements, implementation plans, tasks, and convergence become traceable.
-- Codex and OpenCode can work from the same feature artifacts without separate process conventions.
+- Codex and OpenCode can execute against the same feature artifacts while the repository maintains one safe managed integration state.
 - Architectural decisions remain connected to implementation work instead of existing only as background documentation.
 
 ### Trade-offs
 
 - Material features require more artifact discipline before coding.
-- Generated Spec Kit files must be upgraded through the Specify CLI rather than casually edited.
+- Generated Spec Kit files must be upgraded/switched through the Specify CLI rather than casually edited.
+- Switching to OpenCode locally changes managed integration files; the repository should be restored to Codex before those files are committed.
 - Historical specs contain retrospective documentation and therefore must be distinguished from native Spec Kit execution history.
 
 ## Alternatives Considered
+
+### Simultaneously install Codex and OpenCode
+
+Rejected after `specify integration status --json` reported `unsafe-multi-install` for OpenCode under Spec Kit v1.0.4. The project will not suppress or bypass that upstream safety signal.
 
 ### Continue with ADRs and free-form implementation specs only
 
@@ -48,4 +53,4 @@ Rejected because the project should avoid creating an internal framework where a
 
 ## Validation
 
-The adoption bootstrap uses the official Specify CLI pinned to `v1.0.4`, initializes Codex, installs OpenCode as an additional integration, and preserves the existing TypeScript/test/build CI gates.
+The adoption bootstrap used the official Specify CLI pinned to `v1.0.4`. Codex was initialized through the CLI. A temporary OpenCode install was used to validate compatibility, then removed through the official CLI after the integration status gate identified unsafe simultaneous installation. The dedicated Spec Kit CI gate validates integration state and historical artifact shape, while the existing TypeScript/test/build/browser/database gates remain unchanged.

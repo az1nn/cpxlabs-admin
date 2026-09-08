@@ -4,14 +4,11 @@
 
 ## Pinned Baseline
 
-The repository was initialized with Spec Kit `v1.0.4`. Codex is the default integration and OpenCode is installed as a secondary integration.
+The repository was initialized with Spec Kit `v1.0.4`. Codex is the versioned default integration and its native skills live under `.agents/skills/`.
 
-The generated integration metadata lives under `.specify/`. Agent-specific commands live under:
+OpenCode remains supported, but it is not versioned as a simultaneous integration because Spec Kit v1.0.4 reports the OpenCode + Codex combination as unsafe for multi-install. Use the official integration switch when working with OpenCode rather than keeping both managed layouts committed at once.
 
-- `.agents/skills/` for Codex
-- `.opencode/commands/` for OpenCode
-
-Do not hand-edit generated Spec Kit command/skill files. Upgrade them through the Specify CLI.
+Do not hand-edit generated Spec Kit command/skill files. Upgrade or switch them through the Specify CLI.
 
 ## Workflow
 
@@ -37,7 +34,7 @@ converge
 
 Repeat implementation/convergence until the feature is converged or remaining gaps are explicitly documented.
 
-### Codex
+### Codex (repository default)
 
 Codex uses skills installed in `.agents/skills`:
 
@@ -51,19 +48,22 @@ $speckit-implement
 $speckit-converge
 ```
 
-### OpenCode
+### OpenCode (local switch)
 
-OpenCode uses commands installed in `.opencode/commands`:
+To use OpenCode for a working session:
 
-```text
-/speckit.specify
-/speckit.clarify
-/speckit.plan
-/speckit.tasks
-/speckit.analyze
-/speckit.implement
-/speckit.converge
+```bash
+specify integration switch opencode
 ```
+
+OpenCode then exposes the `/speckit.*` command layout. Before committing managed integration files, restore the repository default:
+
+```bash
+specify integration switch codex
+specify integration status
+```
+
+The feature artifacts under `specs/` are shared regardless of which supported agent executes the workflow.
 
 ## Feature Directory
 
@@ -115,3 +115,5 @@ Spec Kit does not replace repository gates. A feature is not complete merely bec
 - Storybook/browser accessibility coverage
 - Playwright critical journeys
 - PostgreSQL integration when persistence is involved
+
+A dedicated `Spec Kit` workflow validates the pinned CLI integration state and the required artifact shape when Spec Kit/spec files change.
