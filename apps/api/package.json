@@ -6,6 +6,7 @@
     "dev": "tsx watch src/server.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
+    "db:seed": "pnpm db:generate && tsx src/platform/database/seed.ts",
     "db:studio": "prisma studio",
     "prebuild": "pnpm db:generate",
     "build": "tsc -p tsconfig.json",
