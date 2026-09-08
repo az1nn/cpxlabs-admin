@@ -3,8 +3,8 @@ import { RouterProvider } from '@tanstack/react-router'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 
+import { SessionProvider, useAppSession } from './platform/authentication/session-provider'
 import { AuthorizationProvider } from './platform/authorization/authorization-provider'
-import { demoPrincipal } from './platform/authorization/demo-principal'
 import { appDataProvider } from './platform/data/app-data-provider'
 import { DataProviderProvider } from './platform/data/data-provider-context'
 import { router } from './router'
@@ -19,6 +19,16 @@ const queryClient = new QueryClient({
   },
 })
 
+function Application() {
+  const session = useAppSession()
+
+  return (
+    <AuthorizationProvider principal={session.principal}>
+      <RouterProvider router={router} />
+    </AuthorizationProvider>
+  )
+}
+
 const rootElement = document.getElementById('root')
 
 if (!rootElement) {
@@ -29,9 +39,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <DataProviderProvider provider={appDataProvider}>
-        <AuthorizationProvider principal={demoPrincipal}>
-          <RouterProvider router={router} />
-        </AuthorizationProvider>
+        <SessionProvider onSessionCleared={() => queryClient.clear()}>
+          <Application />
+        </SessionProvider>
       </DataProviderProvider>
     </QueryClientProvider>
   </StrictMode>,

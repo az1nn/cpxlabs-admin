@@ -1,3 +1,4 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@cpxlabs-admin/ui'
 import {
   Outlet,
   createRootRoute,
@@ -5,54 +6,135 @@ import {
   createRouter,
   useRouter,
 } from '@tanstack/react-router'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from '@cpxlabs-admin/ui'
+import { useEffect } from 'react'
+import { z } from 'zod'
 
+import { SignInPage } from './features/auth/sign-in-page'
 import { CustomerCreatePage } from './features/customers/customer-create-page'
 import { CustomerDetailPage } from './features/customers/customer-detail-page'
 import { CustomerEditPage } from './features/customers/customer-edit-page'
 import { CustomerListPage } from './features/customers/customer-list-page'
 import { customerListSearchSchema } from './features/customers/customer-list-search'
 import type { CustomerListSearch } from './features/customers/customer-list-search'
+import { useAppSession } from './platform/authentication/session-provider'
 import { AppShell } from './platform/shell/app-shell'
 
 const rootRoute = createRootRoute({
-  component: () => (
-    <AppShell>
-      <Outlet />
-    </AppShell>
-  ),
+  component: Outlet,
+})
+
+const signInSearchSchema = z.object({
+  redirect: z.string().optional(),
+})
+
+const signInRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/sign-in',
+  validateSearch: signInSearchSchema,
+  component: SignInRoute,
+})
+
+const authenticatedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: '_authenticated',
+  component: AuthenticatedLayout,
 })
 
 const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: '/',
   component: OverviewPage,
 })
 
 const customersRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: '/customers',
   validateSearch: customerListSearchSchema,
   component: CustomersRoute,
 })
 
 const customerCreateRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: '/customers/new',
   component: CustomerCreateRoute,
 })
 
 const customerDetailRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: '/customers/$customerId',
   component: CustomerDetailRoute,
 })
 
 const customerEditRoute = createRoute({
-  getParentRoute: () => rootRoute,
+  getParentRoute: () => authenticatedRoute,
   path: '/customers/$customerId/edit',
   component: CustomerEditRoute,
 })
+
+function safeRedirect(redirect: string | undefined) {
+  return redirect && redirect.startsWith('/') && !redirect.startsWith('//')
+    ? redirect
+    : '/'
+}
+
+function SessionLoading() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-background p-5 text-sm text-muted-foreground">
+      Checking session…
+    </main>
+  )
+}
+
+function AuthenticatedLayout() {
+  const session = useAppSession()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (session.status !== 'unauthenticated') {
+      return
+    }
+
+    const destination = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    router.history.replace(`/sign-in?redirect=${encodeURIComponent(destination)}`)
+  }, [router, session.status])
+
+  if (session.status === 'loading') {
+    return <SessionLoading />
+  }
+
+  if (session.status !== 'authenticated') {
+    return null
+  }
+
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  )
+}
+
+function SignInRoute() {
+  const session = useAppSession()
+  const router = useRouter()
+  const search = signInRoute.useSearch()
+  const destination = safeRedirect(search.redirect)
+
+  useEffect(() => {
+    if (session.status === 'authenticated') {
+      router.history.replace(destination)
+    }
+  }, [destination, router, session.status])
+
+  if (session.status === 'loading') {
+    return <SessionLoading />
+  }
+
+  if (session.status === 'authenticated') {
+    return null
+  }
+
+  return <SignInPage onAuthenticated={() => router.history.replace(destination)} />
+}
 
 function OverviewPage() {
   return (
@@ -148,11 +230,14 @@ function CustomerEditRoute() {
 }
 
 const routeTree = rootRoute.addChildren([
-  indexRoute,
-  customersRoute,
-  customerCreateRoute,
-  customerDetailRoute,
-  customerEditRoute,
+  signInRoute,
+  authenticatedRoute.addChildren([
+    indexRoute,
+    customersRoute,
+    customerCreateRoute,
+    customerDetailRoute,
+    customerEditRoute,
+  ]),
 ])
 
 export const router = createRouter({ routeTree })
