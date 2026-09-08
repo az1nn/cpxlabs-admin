@@ -91,11 +91,13 @@ async function seedReferenceUsers() {
   const accessProfiles = new PrismaAccessProfileRepository(prisma)
 
   for (const referenceUser of referenceUsers) {
-    let user = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email: referenceUser.email },
+      select: { id: true },
     })
+    let userId = existingUser?.id
 
-    if (!user) {
+    if (!userId) {
       const result = await auth.api.signUpEmail({
         body: {
           name: referenceUser.name,
@@ -103,11 +105,11 @@ async function seedReferenceUsers() {
           password,
         },
       })
-      user = result.user
+      userId = result.user.id
     }
 
     await accessProfiles.upsert({
-      userId: user.id,
+      userId,
       role: referenceUser.role,
       status: 'active',
     })
