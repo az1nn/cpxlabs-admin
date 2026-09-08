@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createHttpDataProvider, HttpDataProviderError } from './http-data-provider'
+import { createHttpDataProvider } from './http-data-provider'
 
 describe('HttpDataProvider', () => {
   it('serializes list state into the HTTP contract', async () => {
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn(async (_input: string | URL | Request) =>
       new Response(JSON.stringify({ data: [], total: 0 }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -20,7 +20,8 @@ describe('HttpDataProvider', () => {
       filters: { status: 'active' },
     })
 
-    const url = new URL(String(fetcher.mock.calls[0]?.[0]))
+    const requestUrl = String(fetcher.mock.calls[0]?.[0])
+    const url = new URL(requestUrl)
     expect(url.pathname).toBe('/api/customers')
     expect(Object.fromEntries(url.searchParams)).toEqual({
       page: '2',
@@ -33,7 +34,7 @@ describe('HttpDataProvider', () => {
   })
 
   it('maps API error envelopes to a stable application error', async () => {
-    const fetcher = vi.fn(async () =>
+    const fetcher = vi.fn(async (_input: string | URL | Request) =>
       new Response(
         JSON.stringify({
           error: {
@@ -49,7 +50,7 @@ describe('HttpDataProvider', () => {
 
     const action = provider.getOne('customers', 'cus_001')
 
-    await expect(action).rejects.toMatchObject<HttpDataProviderError>({
+    await expect(action).rejects.toMatchObject({
       status: 403,
       code: 'authorization',
       message: 'Forbidden',

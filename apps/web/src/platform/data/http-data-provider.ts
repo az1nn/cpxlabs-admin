@@ -107,29 +107,29 @@ export function createHttpDataProvider({
   const normalizedBaseUrl = baseUrl.replace(/\/$/, '')
 
   return {
-    getList<T>(resource, params) {
+    getList<T>(resource: string, params: ListParams): Promise<ListResult<T>> {
       return request<ListResult<T>>(fetcher, buildListUrl(normalizedBaseUrl, resource, params))
     },
 
-    getOne<T>(resource, id) {
+    getOne<T>(resource: string, id: string): Promise<T> {
       return request<T>(fetcher, `${normalizedBaseUrl}/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`)
     },
 
-    create<T>(resource, input) {
+    create<T>(resource: string, input: unknown): Promise<T> {
       return request<T>(fetcher, `${normalizedBaseUrl}/${encodeURIComponent(resource)}`, {
         method: 'POST',
         body: JSON.stringify(input),
       })
     },
 
-    update<T>(resource, id, input) {
+    update<T>(resource: string, id: string, input: unknown): Promise<T> {
       return request<T>(fetcher, `${normalizedBaseUrl}/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         body: JSON.stringify(input),
       })
     },
 
-    delete(resource, id) {
+    delete(resource: string, id: string): Promise<void> {
       return request<void>(fetcher, `${normalizedBaseUrl}/${encodeURIComponent(resource)}/${encodeURIComponent(id)}`, {
         method: 'DELETE',
       })
