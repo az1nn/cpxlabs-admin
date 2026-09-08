@@ -28,51 +28,68 @@ export function AppShell({ children }: PropsWithChildren) {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="app-sidebar">
-        <a className="brand" href="/" onClick={(event) => navigate(event, '/')}>
-          CPXLabs Admin
-        </a>
+    <div className="min-h-screen bg-background text-foreground lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
+      <aside className="border-b bg-primary text-primary-foreground lg:min-h-screen lg:border-b-0 lg:border-r lg:border-white/10">
+        <div className="px-4 py-5">
+          <a
+            className="block rounded-md px-3 py-2 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            href="/"
+            onClick={(event) => navigate(event, '/')}
+          >
+            CPXLabs Admin
+          </a>
+        </div>
 
-        <nav aria-label="Primary navigation">
-          <span className="nav-section-label">Workspace</span>
-          <div className="nav-list">
-            <a
-              className="nav-link"
-              href="/"
-              aria-current={location.pathname === '/' ? 'page' : undefined}
-              onClick={(event) => navigate(event, '/')}
-            >
-              Overview
-            </a>
-          </div>
+        <nav className="px-3 pb-5" aria-label="Primary navigation">
+          <p className="mb-2 px-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-primary-foreground/55">
+            Workspace
+          </p>
+          <a
+            className={`mb-5 block rounded-md px-3 py-2 text-sm transition-colors ${
+              location.pathname === '/'
+                ? 'bg-white/12 text-white'
+                : 'text-primary-foreground/75 hover:bg-white/8 hover:text-white'
+            }`}
+            href="/"
+            aria-current={location.pathname === '/' ? 'page' : undefined}
+            onClick={(event) => navigate(event, '/')}
+          >
+            Overview
+          </a>
 
           {navigation.map((item) => (
-            <div key={item.resource}>
-              <span className="nav-section-label">{item.group}</span>
-              <div className="nav-list">
-                <a
-                  className="nav-link"
-                  href={item.href}
-                  aria-current={
-                    location.pathname.startsWith(item.href) ? 'page' : undefined
-                  }
-                  onClick={(event) => navigate(event, item.href)}
-                >
-                  {item.label}
-                </a>
-              </div>
+            <div key={item.resource} className="mb-5">
+              <p className="mb-2 px-3 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-primary-foreground/55">
+                {item.group}
+              </p>
+              <a
+                className={`block rounded-md px-3 py-2 text-sm transition-colors ${
+                  location.pathname.startsWith(item.href)
+                    ? 'bg-white/12 text-white'
+                    : 'text-primary-foreground/75 hover:bg-white/8 hover:text-white'
+                }`}
+                href={item.href}
+                aria-current={location.pathname.startsWith(item.href) ? 'page' : undefined}
+                onClick={(event) => navigate(event, item.href)}
+              >
+                {item.label}
+              </a>
             </div>
           ))}
         </nav>
       </aside>
 
-      <div className="app-main">
-        <header className="app-topbar">
-          <strong>Enterprise workspace</strong>
-          <span>{authorization.principal?.id ?? 'Anonymous'}</span>
+      <div className="min-w-0">
+        <header className="flex h-16 items-center justify-between border-b bg-card px-5 sm:px-7">
+          <div>
+            <p className="m-0 text-sm font-semibold">Enterprise workspace</p>
+            <p className="m-0 mt-0.5 text-xs text-muted-foreground">Reusable admin platform</p>
+          </div>
+          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+            {authorization.principal?.id ?? 'Anonymous'}
+          </span>
         </header>
-        <main className="app-content">{children}</main>
+        <main className="mx-auto w-full max-w-[1600px] p-5 sm:p-7">{children}</main>
       </div>
     </div>
   )

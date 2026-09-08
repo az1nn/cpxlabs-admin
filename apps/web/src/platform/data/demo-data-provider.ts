@@ -1,8 +1,8 @@
 import type { DataProvider, ListParams, ListResult } from '@cpxlabs-admin/contracts'
 
-import type { Customer } from '../../features/customers/customer.types'
+import type { Customer, CustomerInput } from '../../features/customers/customer.types'
 
-const customers: readonly Customer[] = [
+let customers: Customer[] = [
   { id: 'cus_001', name: 'Acme Brasil', email: 'ops@acme.example', company: 'Acme', status: 'active', updatedAt: '2026-09-08T09:12:00-03:00' },
   { id: 'cus_002', name: 'Northstar Retail', email: 'admin@northstar.example', company: 'Northstar', status: 'lead', updatedAt: '2026-09-07T16:40:00-03:00' },
   { id: 'cus_003', name: 'Atlas Logistics', email: 'it@atlas.example', company: 'Atlas', status: 'active', updatedAt: '2026-09-06T14:02:00-03:00' },
@@ -17,25 +17,36 @@ const customers: readonly Customer[] = [
   { id: 'cus_012', name: 'Ember Studio', email: 'team@ember.example', company: 'Ember', status: 'inactive', updatedAt: '2026-08-21T18:05:00-03:00' },
 ]
 
+let sequence = 100
+
 function compareCustomers(a: Customer, b: Customer, field: string): number {
   switch (field) {
-    case 'name':
-      return a.name.localeCompare(b.name)
-    case 'company':
-      return a.company.localeCompare(b.company)
-    case 'status':
-      return a.status.localeCompare(b.status)
-    case 'updatedAt':
-      return a.updatedAt.localeCompare(b.updatedAt)
-    default:
-      return 0
+    case 'name': return a.name.localeCompare(b.name)
+    case 'company': return a.company.localeCompare(b.company)
+    case 'status': return a.status.localeCompare(b.status)
+    case 'updatedAt': return a.updatedAt.localeCompare(b.updatedAt)
+    default: return 0
   }
+}
+
+function assertCustomerResource(resource: string) {
+  if (resource !== 'customers') {
+    throw new Error(`Demo provider does not implement resource: ${resource}`)
+  }
+}
+
+function getCustomer(id: string) {
+  const customer = customers.find((candidate) => candidate.id === id)
+  if (!customer) {
+    throw new Error(`Customer not found: ${id}`)
+  }
+  return customer
 }
 
 async function listCustomers<T>(params: ListParams): Promise<ListResult<T>> {
   let result = [...customers]
-
   const search = params.search?.trim().toLocaleLowerCase()
+
   if (search) {
     result = result.filter((customer) =>
       [customer.name, customer.email, customer.company].some((value) =>
@@ -51,43 +62,55 @@ async function listCustomers<T>(params: ListParams): Promise<ListResult<T>> {
 
   if (params.sort) {
     const direction = params.sort.direction === 'asc' ? 1 : -1
-    result.sort(
-      (left, right) => compareCustomers(left, right, params.sort!.field) * direction,
-    )
+    result.sort((left, right) => compareCustomers(left, right, params.sort!.field) * direction)
   }
 
   const total = result.length
   const offset = Math.max(0, (params.page - 1) * params.pageSize)
   const page = result.slice(offset, offset + params.pageSize)
 
-  return {
-    data: page as unknown as readonly T[],
-    total,
-  }
+  return { data: page as unknown as readonly T[], total }
 }
 
 export const demoDataProvider: DataProvider = {
   async getList<T>(resource: string, params: ListParams): Promise<ListResult<T>> {
-    if (resource === 'customers') {
-      return listCustomers<T>(params)
+    assertCustomerResource(resource)
+    return listCustomers<T>(params)
+  },
+
+  async getOne<T>(resource: string, id: string): Promise<T> {
+    assertCustomerResource(resource)
+    return getCustomer(id) as unknown as T
+  },
+
+  async create<T>(resource: string, input: unknown): Promise<T> {
+    assertCustomerResource(resource)
+    const values = input as CustomerInput
+    const customer: Customer = {
+      id: `cus_${++sequence}`,
+      ...values,
+      updatedAt: new Date().toISOString(),
     }
-
-    throw new Error(`Demo provider does not implement resource: ${resource}`)
+    customers = [customer, ...customers]
+    return customer as unknown as T
   },
 
-  async getOne<T>(_resource: string, _id: string): Promise<T> {
-    throw new Error('Demo provider getOne is not implemented yet')
+  async update<T>(resource: string, id: string, input: unknown): Promise<T> {
+    assertCustomerResource(resource)
+    getCustomer(id)
+    const values = input as CustomerInput
+    const updated: Customer = {
+      id,
+      ...values,
+      updatedAt: new Date().toISOString(),
+    }
+    customers = customers.map((customer) => (customer.id === id ? updated : customer))
+    return updated as unknown as T
   },
 
-  async create<T>(_resource: string, _input: unknown): Promise<T> {
-    throw new Error('Demo provider create is not implemented yet')
-  },
-
-  async update<T>(_resource: string, _id: string, _input: unknown): Promise<T> {
-    throw new Error('Demo provider update is not implemented yet')
-  },
-
-  async delete(_resource: string, _id: string): Promise<void> {
-    throw new Error('Demo provider delete is not implemented yet')
+  async delete(resource: string, id: string): Promise<void> {
+    assertCustomerResource(resource)
+    getCustomer(id)
+    customers = customers.filter((customer) => customer.id !== id)
   },
 }

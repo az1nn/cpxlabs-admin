@@ -1,6 +1,7 @@
 export * from './components/badge'
 export * from './components/button'
 export * from './components/card'
+export * from './components/dialog'
 export * from './components/empty-state'
 export * from './components/form-field'
 export * from './components/input'
