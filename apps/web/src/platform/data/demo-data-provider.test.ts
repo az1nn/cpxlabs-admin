@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Customer } from '../../features/customers/customer.types'
+import type { Customer, CustomerInput } from '../../features/customers/customer.types'
 import { demoDataProvider } from './demo-data-provider'
 
 describe('demoDataProvider', () => {
@@ -26,5 +26,26 @@ describe('demoDataProvider', () => {
 
     expect(result.total).toBe(1)
     expect(result.data[0]?.name).toBe('Northstar Retail')
+  })
+
+  it('supports the generic CRUD contract', async () => {
+    const input: CustomerInput = {
+      name: 'Test Customer',
+      company: 'Test Company',
+      email: 'test@example.com',
+      status: 'lead',
+    }
+
+    const created = await demoDataProvider.create<Customer>('customers', input)
+    expect((await demoDataProvider.getOne<Customer>('customers', created.id)).name).toBe(input.name)
+
+    const updated = await demoDataProvider.update<Customer>('customers', created.id, {
+      ...input,
+      status: 'active',
+    })
+    expect(updated.status).toBe('active')
+
+    await demoDataProvider.delete('customers', created.id)
+    await expect(demoDataProvider.getOne<Customer>('customers', created.id)).rejects.toThrow('Customer not found')
   })
 })

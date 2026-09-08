@@ -8,3 +8,5 @@ export type Customer = {
   status: CustomerStatus
   updatedAt: string
 }
+
+export type CustomerInput = Pick<Customer, 'name' | 'email' | 'company' | 'status'>

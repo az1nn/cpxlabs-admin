@@ -5,9 +5,13 @@ export const customerResource = defineResource({
   label: 'Customers',
   routes: {
     list: '/customers',
+    create: '/customers/new',
+    show: '/customers/:id',
+    edit: '/customers/:id/edit',
   },
   capabilities: {
     list: 'customers.read',
+    show: 'customers.read',
     create: 'customers.create',
     edit: 'customers.update',
     delete: 'customers.delete',
