@@ -1,7 +1,22 @@
+import { loadEnvFile } from 'node:process'
+
 import { buildApp } from './app.js'
 import { InMemoryCustomerRepository } from './modules/customers/customer.repository.js'
 import { PrismaCustomerRepository } from './modules/customers/customer.prisma-repository.js'
 import { createPrismaClient } from './platform/database/prisma.js'
+
+try {
+  loadEnvFile('.env')
+} catch (error) {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? error.code
+      : undefined
+
+  if (code !== 'ENOENT') {
+    throw error
+  }
+}
 
 const databaseUrl = process.env.DATABASE_URL?.trim()
 const prisma = databaseUrl ? createPrismaClient(databaseUrl) : undefined
