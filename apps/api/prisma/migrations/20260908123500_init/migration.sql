@@ -1,9 +1,11 @@
+CREATE TYPE "customer_status" AS ENUM ('lead', 'active', 'inactive');
+
 CREATE TABLE "customers" (
   "id" TEXT NOT NULL,
   "name" TEXT NOT NULL,
   "email" TEXT NOT NULL,
   "company" TEXT NOT NULL,
-  "status" TEXT NOT NULL,
+  "status" "customer_status" NOT NULL,
   "updated_at" TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT "customers_pkey" PRIMARY KEY ("id")
