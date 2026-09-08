@@ -45,6 +45,9 @@ jobs:
       - name: Apply database migrations
         run: pnpm --filter @cpxlabs-admin/api db:migrate
 
+      - name: Seed reference data
+        run: pnpm --filter @cpxlabs-admin/api db:seed
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -90,6 +93,9 @@ jobs:
 
       - name: Apply database migrations
         run: pnpm --filter @cpxlabs-admin/api db:migrate
+
+      - name: Seed reference data
+        run: pnpm --filter @cpxlabs-admin/api db:seed
 
       - name: Install Chromium
         run: pnpm --filter @cpxlabs-admin/web exec playwright install chromium --with-deps
