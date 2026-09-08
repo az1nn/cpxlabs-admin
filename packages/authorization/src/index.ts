@@ -4,13 +4,13 @@ const roleCapabilities = {
   admin: new Set<Capability>([
     'customers.read',
     'customers.create',
-    'customers.edit',
+    'customers.update',
     'customers.delete',
   ]),
   manager: new Set<Capability>([
     'customers.read',
     'customers.create',
-    'customers.edit',
+    'customers.update',
   ]),
   viewer: new Set<Capability>(['customers.read']),
 } satisfies Record<ApplicationRole, ReadonlySet<Capability>>
