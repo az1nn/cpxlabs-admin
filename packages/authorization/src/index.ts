@@ -6,14 +6,20 @@ const roleCapabilities = {
     'customers.create',
     'customers.update',
     'customers.delete',
+    'opportunities.read',
+    'opportunities.create',
+    'opportunities.transition',
     'audit.read',
   ]),
   manager: new Set<Capability>([
     'customers.read',
     'customers.create',
     'customers.update',
+    'opportunities.read',
+    'opportunities.create',
+    'opportunities.transition',
   ]),
-  viewer: new Set<Capability>(['customers.read']),
+  viewer: new Set<Capability>(['customers.read', 'opportunities.read']),
 } satisfies Record<ApplicationRole, ReadonlySet<Capability>>
 
 export type Principal = {
