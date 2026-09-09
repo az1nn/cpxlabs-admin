@@ -1,0 +1,40 @@
+name: Bootstrap OTel Lockfile
+
+on:
+  push:
+    branches:
+      - feat/006-audit-read-telemetry
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    if: ${{ !contains(github.event.head_commit.message, '[otel-lockfile]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/006-audit-read-telemetry
+
+      - uses: pnpm/action-setup@v6.0.10
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Resolve dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Commit lockfile
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo 'Lockfile already current'
+            exit 0
+          fi
+          git commit -m 'chore: refresh OpenTelemetry lockfile [otel-lockfile]'
+          git push origin HEAD:feat/006-audit-read-telemetry
