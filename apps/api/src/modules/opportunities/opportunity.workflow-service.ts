@@ -68,6 +68,7 @@ export class InMemoryOpportunityWorkflowService implements OpportunityWorkflowSe
       )
       return opportunity
     } catch (error) {
+      this.opportunities.deleteForWorkflow(opportunity.id)
       throw error
     }
   }
