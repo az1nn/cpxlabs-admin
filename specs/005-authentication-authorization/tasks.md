@@ -114,7 +114,7 @@
 - [x] T040 Update CI seed/auth environment and ensure PostgreSQL-backed browser tests exercise Better Auth in `.github/workflows/ci.yml`
 - [x] T041 Run and fix `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm test:storybook`, and `pnpm e2e` without weakening existing gates
 - [x] T042 Add structured security-event emission for failed authentication, disabled access, and forbidden authorization decisions without logging credentials/session secrets in `apps/api/src/platform/authentication/security-events.ts`, `apps/api/src/platform/authentication/session.ts`, and `apps/api/src/platform/authorization/guards.ts`, with assertions in auth/authorization tests
-- [ ] T043 Validate all SC-001 through SC-008 and record any remaining convergence gaps in `specs/005-authentication-authorization/tasks.md`
+- [x] T043 Validate all SC-001 through SC-008 and record any remaining convergence gaps in `specs/005-authentication-authorization/tasks.md`
 
 ---
 
