@@ -16,16 +16,17 @@ import { CustomerEditPage } from './features/customers/customer-edit-page'
 import { CustomerListPage } from './features/customers/customer-list-page'
 import { customerListSearchSchema } from './features/customers/customer-list-search'
 import type { CustomerListSearch } from './features/customers/customer-list-search'
+import { OpportunityCreatePage } from './features/opportunities/opportunity-create-page'
+import { OpportunityDetailPage } from './features/opportunities/opportunity-detail-page'
+import { OpportunityListPage } from './features/opportunities/opportunity-list-page'
+import { opportunityListSearchSchema } from './features/opportunities/opportunity-list-search'
+import type { OpportunityListSearch } from './features/opportunities/opportunity-list-search'
 import { useAppSession } from './platform/authentication/session-provider'
 import { AppShell } from './platform/shell/app-shell'
 
-const rootRoute = createRootRoute({
-  component: Outlet,
-})
+const rootRoute = createRootRoute({ component: Outlet })
 
-const signInSearchSchema = z.object({
-  redirect: z.string().optional(),
-})
+const signInSearchSchema = z.object({ redirect: z.string().optional() })
 
 const signInRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -71,10 +72,27 @@ const customerEditRoute = createRoute({
   component: CustomerEditRoute,
 })
 
+const opportunitiesRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: '/opportunities',
+  validateSearch: opportunityListSearchSchema,
+  component: OpportunitiesRoute,
+})
+
+const opportunityCreateRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: '/opportunities/new',
+  component: OpportunityCreateRoute,
+})
+
+const opportunityDetailRoute = createRoute({
+  getParentRoute: () => authenticatedRoute,
+  path: '/opportunities/$opportunityId',
+  component: OpportunityDetailRoute,
+})
+
 function safeRedirect(redirect: string | undefined) {
-  return redirect && redirect.startsWith('/') && !redirect.startsWith('//')
-    ? redirect
-    : '/'
+  return redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : '/'
 }
 
 function SessionLoading() {
@@ -90,27 +108,15 @@ function AuthenticatedLayout() {
   const router = useRouter()
 
   useEffect(() => {
-    if (session.status !== 'unauthenticated') {
-      return
-    }
-
+    if (session.status !== 'unauthenticated') return
     const destination = `${window.location.pathname}${window.location.search}${window.location.hash}`
     router.history.replace(`/sign-in?redirect=${encodeURIComponent(destination)}`)
   }, [router, session.status])
 
-  if (session.status === 'loading') {
-    return <SessionLoading />
-  }
+  if (session.status === 'loading') return <SessionLoading />
+  if (session.status !== 'authenticated') return null
 
-  if (session.status !== 'authenticated') {
-    return null
-  }
-
-  return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
-  )
+  return <AppShell><Outlet /></AppShell>
 }
 
 function SignInRoute() {
@@ -120,19 +126,11 @@ function SignInRoute() {
   const destination = safeRedirect(search.redirect)
 
   useEffect(() => {
-    if (session.status === 'authenticated') {
-      router.history.replace(destination)
-    }
+    if (session.status === 'authenticated') router.history.replace(destination)
   }, [destination, router, session.status])
 
-  if (session.status === 'loading') {
-    return <SessionLoading />
-  }
-
-  if (session.status === 'authenticated') {
-    return null
-  }
-
+  if (session.status === 'loading') return <SessionLoading />
+  if (session.status === 'authenticated') return null
   return <SignInPage onAuthenticated={() => router.history.replace(destination)} />
 }
 
@@ -144,27 +142,17 @@ function OverviewPage() {
         title="Enterprise administration starter"
         description="Resource-driven navigation, capability-aware UI, an owned design system and server-oriented data contracts are active."
       />
-
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardHeader>
-            <CardTitle>React + Vite</CardTitle>
-            <CardDescription>SPA-first and backend-agnostic runtime.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>React + Vite</CardTitle><CardDescription>SPA-first and backend-agnostic runtime.</CardDescription></CardHeader>
           <CardContent className="text-sm text-muted-foreground">No framework-specific backend assumptions.</CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>Resource Registry</CardTitle>
-            <CardDescription>Navigation and capabilities from metadata.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Resource Registry</CardTitle><CardDescription>Navigation and capabilities from metadata.</CardDescription></CardHeader>
           <CardContent className="text-sm text-muted-foreground">CRUD metadata without domain workflow lock-in.</CardContent>
         </Card>
         <Card>
-          <CardHeader>
-            <CardTitle>Owned UI</CardTitle>
-            <CardDescription>Base UI behavior + Tailwind semantic tokens.</CardDescription>
-          </CardHeader>
+          <CardHeader><CardTitle>Owned UI</CardTitle><CardDescription>Base UI behavior + Tailwind semantic tokens.</CardDescription></CardHeader>
           <CardContent className="text-sm text-muted-foreground">Application-owned components following shadcn conventions.</CardContent>
         </Card>
       </div>
@@ -176,12 +164,8 @@ function CustomersRoute() {
   const router = useRouter()
   const search = customersRoute.useSearch()
   const navigate = customersRoute.useNavigate()
-
   const updateSearch = (patch: Partial<CustomerListSearch>) => {
-    void navigate({
-      search: (previous) => ({ ...previous, ...patch }),
-      replace: true,
-    })
+    void navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
   }
 
   return (
@@ -196,12 +180,7 @@ function CustomersRoute() {
 
 function CustomerCreateRoute() {
   const router = useRouter()
-  return (
-    <CustomerCreatePage
-      onCreated={(id) => router.history.push(`/customers/${id}`)}
-      onCancel={() => router.history.push('/customers')}
-    />
-  )
+  return <CustomerCreatePage onCreated={(id) => router.history.push(`/customers/${id}`)} onCancel={() => router.history.push('/customers')} />
 }
 
 function CustomerDetailRoute() {
@@ -229,6 +208,40 @@ function CustomerEditRoute() {
   )
 }
 
+function OpportunitiesRoute() {
+  const router = useRouter()
+  const search = opportunitiesRoute.useSearch()
+  const navigate = opportunitiesRoute.useNavigate()
+  const updateSearch = (patch: Partial<OpportunityListSearch>) => {
+    void navigate({ search: (previous) => ({ ...previous, ...patch }), replace: true })
+  }
+
+  return (
+    <OpportunityListPage
+      search={search}
+      onSearchChange={updateSearch}
+      onCreate={() => router.history.push('/opportunities/new')}
+      onOpen={(id) => router.history.push(`/opportunities/${id}`)}
+    />
+  )
+}
+
+function OpportunityCreateRoute() {
+  const router = useRouter()
+  return (
+    <OpportunityCreatePage
+      onCreated={(id) => router.history.push(`/opportunities/${id}`)}
+      onCancel={() => router.history.push('/opportunities')}
+    />
+  )
+}
+
+function OpportunityDetailRoute() {
+  const router = useRouter()
+  const { opportunityId } = opportunityDetailRoute.useParams()
+  return <OpportunityDetailPage opportunityId={opportunityId} onBack={() => router.history.push('/opportunities')} />
+}
+
 const routeTree = rootRoute.addChildren([
   signInRoute,
   authenticatedRoute.addChildren([
@@ -237,13 +250,14 @@ const routeTree = rootRoute.addChildren([
     customerCreateRoute,
     customerDetailRoute,
     customerEditRoute,
+    opportunitiesRoute,
+    opportunityCreateRoute,
+    opportunityDetailRoute,
   ]),
 ])
 
 export const router = createRouter({ routeTree })
 
 declare module '@tanstack/react-router' {
-  interface Register {
-    router: typeof router
-  }
+  interface Register { router: typeof router }
 }
