@@ -59,17 +59,76 @@ describeDatabase('PrismaOpportunityWorkflowService', () => {
     expect(events.data[0]!.before).toBeNull()
     expect(events.data[0]!.after).toMatchObject({
       id: created.id,
+      name: 'Workflow Opportunity',
+      accountName: 'Acme Brasil',
+      amountMinor: 12500000,
+      currency: 'BRL',
+      expectedCloseDate: '2026-11-30',
       stage: 'qualification',
       version: 1,
+      lossReason: null,
     })
   })
 
-  it('commits valid transitions with audit and rejects invalid terminal transitions', async () => {
+  it('commits the complete forward lifecycle through won with versioned audit snapshots', async () => {
     const service = new PrismaOpportunityWorkflowService(prisma)
     const audit = new PrismaAuditRepository(prisma)
     const created = await service.create(
       {
-        name: 'Lifecycle Opportunity',
+        name: 'Won Lifecycle Opportunity',
+        accountName: 'Won Lifecycle Co',
+        amountMinor: 1_500_000,
+        currency: 'BRL',
+        expectedCloseDate: '2027-01-15',
+      },
+      { principal, requestId: crypto.randomUUID() },
+    )
+    ids.push(created.id)
+
+    let current = created
+    for (const targetStage of ['discovery', 'proposal', 'negotiation', 'won'] as const) {
+      const requestId = crypto.randomUUID()
+      const before = current
+      current = await service.transition(
+        created.id,
+        { targetStage, expectedVersion: before.version },
+        { principal, requestId },
+      )
+      expect(current.stage).toBe(targetStage)
+      expect(current.version).toBe(before.version + 1)
+
+      const events = await audit.list({
+        subjectType: 'opportunity',
+        subjectId: created.id,
+        action: 'opportunities.stage.change',
+        limit: 10,
+      })
+      const transitionEvent = events.data.find((event) => event.correlationId === requestId)
+      expect(transitionEvent).toMatchObject({
+        action: 'opportunities.stage.change',
+        correlationId: requestId,
+        before: { stage: before.stage, version: before.version },
+        after: { stage: targetStage, version: before.version + 1 },
+      })
+    }
+
+    expect(current).toMatchObject({ stage: 'won', version: 5, lossReason: null })
+    await expect(
+      service.transition(
+        created.id,
+        { targetStage: 'lost', expectedVersion: 5, lossReason: 'Too late' },
+        { principal, requestId: crypto.randomUUID() },
+      ),
+    ).rejects.toMatchObject({ code: 'WORKFLOW_INVALID_TRANSITION', statusCode: 409 })
+    expect((await prisma.opportunity.findUniqueOrThrow({ where: { id: created.id } })).version).toBe(5)
+  })
+
+  it('commits loss from a non-terminal stage and rejects terminal transitions without extra audit', async () => {
+    const service = new PrismaOpportunityWorkflowService(prisma)
+    const audit = new PrismaAuditRepository(prisma)
+    const created = await service.create(
+      {
+        name: 'Lost Lifecycle Opportunity',
         accountName: 'Lifecycle Co',
         amountMinor: 900000,
         currency: 'BRL',
@@ -86,14 +145,21 @@ describeDatabase('PrismaOpportunityWorkflowService', () => {
     )
     expect(discovery).toMatchObject({ stage: 'discovery', version: 2 })
 
+    const lostRequestId = crypto.randomUUID()
     const lost = await service.transition(
       created.id,
       { targetStage: 'lost', expectedVersion: 2, lossReason: '  Budget frozen  ' },
-      { principal, requestId: crypto.randomUUID() },
+      { principal, requestId: lostRequestId },
     )
     expect(lost).toMatchObject({ stage: 'lost', version: 3, lossReason: 'Budget frozen' })
 
     const beforeEvents = await audit.list({ subjectType: 'opportunity', subjectId: created.id, limit: 10 })
+    const lossEvent = beforeEvents.data.find((event) => event.correlationId === lostRequestId)
+    expect(lossEvent).toMatchObject({
+      before: { stage: 'discovery', version: 2, lossReason: null },
+      after: { stage: 'lost', version: 3, lossReason: 'Budget frozen' },
+    })
+
     await expect(
       service.transition(
         created.id,
