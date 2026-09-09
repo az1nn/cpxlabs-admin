@@ -21,6 +21,8 @@ const [
   { buildApp },
   { PrismaCustomerMutationService },
   { PrismaCustomerRepository },
+  { PrismaOpportunityRepository },
+  { PrismaOpportunityWorkflowService },
   { PrismaAuditRepository },
   { createAuth },
   { createRequestContextResolver },
@@ -31,6 +33,8 @@ const [
   import('./app.js'),
   import('./modules/customers/customer.mutation-service.js'),
   import('./modules/customers/customer.prisma-repository.js'),
+  import('./modules/opportunities/opportunity.prisma-repository.js'),
+  import('./modules/opportunities/opportunity.workflow-service.js'),
   import('./platform/audit/audit.prisma-repository.js'),
   import('./platform/authentication/auth.js'),
   import('./platform/authentication/session.js'),
@@ -60,6 +64,8 @@ const prisma = createPrismaClient(databaseUrl)
 const customerRepository = new PrismaCustomerRepository(prisma)
 const auditRepository = new PrismaAuditRepository(prisma)
 const customerMutationService = new PrismaCustomerMutationService(prisma)
+const opportunityRepository = new PrismaOpportunityRepository(prisma)
+const opportunityWorkflow = new PrismaOpportunityWorkflowService(prisma)
 const accessProfiles = new PrismaAccessProfileRepository(prisma)
 const auth = createAuth({
   prisma,
@@ -73,6 +79,8 @@ const authorization = createAuthorizationGuards(resolveRequestContext)
 const app = buildApp({
   customerRepository,
   customerMutationService,
+  opportunityRepository,
+  opportunityWorkflow,
   auditRepository,
   authorization,
   authentication: {

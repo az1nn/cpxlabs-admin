@@ -1,9 +1,13 @@
+import type { OpportunityStage } from './opportunity'
+
 export type AuditAction =
   | 'customers.create'
   | 'customers.update'
   | 'customers.delete'
+  | 'opportunities.create'
+  | 'opportunities.stage.change'
 
-export type AuditSubjectType = 'customer'
+export type AuditSubjectType = 'customer' | 'opportunity'
 
 export type CustomerAuditSnapshot = {
   id: string
@@ -13,6 +17,21 @@ export type CustomerAuditSnapshot = {
   status: 'lead' | 'active' | 'inactive'
   updatedAt: string
 }
+
+export type OpportunityAuditSnapshot = {
+  id: string
+  name: string
+  accountName: string
+  amountMinor: number
+  currency: string
+  expectedCloseDate: string
+  stage: OpportunityStage
+  version: number
+  lossReason: string | null
+  updatedAt: string
+}
+
+export type AuditSnapshot = CustomerAuditSnapshot | OpportunityAuditSnapshot
 
 export type AuditEventDto = {
   id: string
@@ -26,8 +45,8 @@ export type AuditEventDto = {
     type: AuditSubjectType
     id: string
   }
-  before: CustomerAuditSnapshot | null
-  after: CustomerAuditSnapshot | null
+  before: AuditSnapshot | null
+  after: AuditSnapshot | null
   correlationId: string
   tenantId: string | null
   occurredAt: string

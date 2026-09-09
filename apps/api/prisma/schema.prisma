@@ -19,6 +19,17 @@ enum CustomerStatus {
   @@map("customer_status")
 }
 
+enum OpportunityStage {
+  qualification
+  discovery
+  proposal
+  negotiation
+  won
+  lost
+
+  @@map("opportunity_stage")
+}
+
 enum ApplicationRole {
   admin
   manager
@@ -45,6 +56,26 @@ model Customer {
   @@index([name])
   @@index([status])
   @@map("customers")
+}
+
+model Opportunity {
+  id                String           @id @default(cuid())
+  name              String
+  accountName       String           @map("account_name")
+  amountMinor       BigInt           @map("amount_minor")
+  currency          String           @db.Char(3)
+  expectedCloseDate DateTime         @db.Date @map("expected_close_date")
+  stage             OpportunityStage @default(qualification)
+  version           Int              @default(1)
+  lossReason        String?          @map("loss_reason")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([stage])
+  @@index([expectedCloseDate])
+  @@index([updatedAt])
+  @@index([accountName])
+  @@map("opportunities")
 }
 
 model AuditEvent {

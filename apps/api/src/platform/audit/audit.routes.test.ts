@@ -29,6 +29,18 @@ async function repositoryWithEvent() {
     correlationId: 'request-audit',
     tenantId: null,
   })
+  await repository.append({
+    actorId: 'admin-audit-user',
+    actorEmail: 'admin@example.com',
+    actorName: 'Admin',
+    action: 'opportunities.stage.change',
+    subjectType: 'opportunity',
+    subjectId: 'opp_audit',
+    before: null,
+    after: null,
+    correlationId: 'request-opportunity-audit',
+    tenantId: null,
+  })
   return repository
 }
 
@@ -36,7 +48,7 @@ describe('GET /api/audit-events', () => {
   it('allows Admin and returns the documented nested actor/subject contract', async () => {
     const repository = await repositoryWithEvent()
     const app = buildApp({ auditRepository: repository, authorization: authorizationFor('admin') })
-    const response = await app.inject({ method: 'GET', url: '/api/audit-events?limit=10' })
+    const response = await app.inject({ method: 'GET', url: '/api/audit-events?subjectType=customer&limit=10' })
 
     expect(response.statusCode).toBe(200)
     expect(response.json()).toMatchObject({
@@ -49,6 +61,27 @@ describe('GET /api/audit-events', () => {
         },
       ],
       nextCursor: null,
+    })
+    await app.close()
+  })
+
+  it('supports opportunity subject/action filters without customer regression', async () => {
+    const app = buildApp({
+      auditRepository: await repositoryWithEvent(),
+      authorization: authorizationFor('admin'),
+    })
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/audit-events?subjectType=opportunity&action=opportunities.stage.change',
+    })
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toMatchObject({
+      data: [
+        {
+          action: 'opportunities.stage.change',
+          subject: { type: 'opportunity', id: 'opp_audit' },
+        },
+      ],
     })
     await app.close()
   })

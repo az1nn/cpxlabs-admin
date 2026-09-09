@@ -3,6 +3,9 @@ import Fastify from 'fastify'
 import { InMemoryCustomerMutationService, type CustomerMutationService } from './modules/customers/customer.mutation-service.js'
 import { InMemoryCustomerRepository, type CustomerRepository } from './modules/customers/customer.repository.js'
 import { customerRoutes } from './modules/customers/customer.routes.js'
+import { InMemoryOpportunityRepository, type OpportunityRepository } from './modules/opportunities/opportunity.repository.js'
+import { opportunityRoutes } from './modules/opportunities/opportunity.routes.js'
+import { InMemoryOpportunityWorkflowService, type OpportunityWorkflowService } from './modules/opportunities/opportunity.workflow-service.js'
 import { InMemoryAuditRepository, type AuditRepository } from './platform/audit/audit.repository.js'
 import { auditRoutes } from './platform/audit/audit.routes.js'
 import type { AppAuth } from './platform/authentication/auth.js'
@@ -16,6 +19,8 @@ import { createRequestId, installCorrelation } from './platform/observability/co
 export type BuildAppOptions = {
   customerRepository?: CustomerRepository
   customerMutationService?: CustomerMutationService
+  opportunityRepository?: OpportunityRepository
+  opportunityWorkflow?: OpportunityWorkflowService
   auditRepository?: AuditRepository
   authorization?: AuthorizationGuards
   authentication?: {
@@ -48,11 +53,29 @@ export function buildApp(options: BuildAppOptions = {}) {
   const customerMutationService =
     options.customerMutationService ??
     new InMemoryCustomerMutationService(customerRepository, auditRepository)
+  const opportunityRepository =
+    options.opportunityRepository instanceof InMemoryOpportunityRepository
+      ? options.opportunityRepository
+      : options.opportunityRepository ?? new InMemoryOpportunityRepository()
+  const opportunityWorkflow =
+    options.opportunityWorkflow ??
+    (opportunityRepository instanceof InMemoryOpportunityRepository
+      ? new InMemoryOpportunityWorkflowService(opportunityRepository, auditRepository)
+      : undefined)
   const authorization = options.authorization ?? createUnauthenticatedGuards()
+
+  if (!opportunityWorkflow) {
+    throw new Error('Opportunity workflow service is required for a non-memory repository')
+  }
 
   app.register(customerRoutes, {
     repository: customerRepository,
     mutationService: customerMutationService,
+    authorization,
+  })
+  app.register(opportunityRoutes, {
+    repository: opportunityRepository,
+    workflow: opportunityWorkflow,
     authorization,
   })
   app.register(auditRoutes, {

@@ -10,6 +10,8 @@ export type ApiErrorCode =
   | 'AUTHENTICATION_REQUIRED'
   | 'ACCESS_DISABLED'
   | 'FORBIDDEN'
+  | 'WORKFLOW_INVALID_TRANSITION'
+  | 'WORKFLOW_CONFLICT'
 
 export type ApiErrorBody = {
   code: ApiErrorCode

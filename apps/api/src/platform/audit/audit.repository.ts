@@ -5,8 +5,8 @@ import type {
   AuditEventDto,
   AuditEventListQuery,
   AuditEventListResponse,
+  AuditSnapshot,
   AuditSubjectType,
-  CustomerAuditSnapshot,
 } from '@cpxlabs-admin/contracts'
 
 export type AuditEventInput = {
@@ -16,8 +16,8 @@ export type AuditEventInput = {
   action: AuditAction
   subjectType: AuditSubjectType
   subjectId: string
-  before: CustomerAuditSnapshot | null
-  after: CustomerAuditSnapshot | null
+  before: AuditSnapshot | null
+  after: AuditSnapshot | null
   correlationId: string
   tenantId: string | null
 }

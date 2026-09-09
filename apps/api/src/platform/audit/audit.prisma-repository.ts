@@ -2,7 +2,7 @@ import type {
   AuditEventDto,
   AuditEventListQuery,
   AuditEventListResponse,
-  CustomerAuditSnapshot,
+  AuditSnapshot,
 } from '@cpxlabs-admin/contracts'
 
 import type { AuditEvent as PrismaAuditEvent, Prisma } from '../../generated/prisma/client.js'
@@ -30,9 +30,9 @@ function decodeCursor(cursor: string | undefined): CursorPosition | null {
   }
 }
 
-function toSnapshot(value: Prisma.JsonValue | null): CustomerAuditSnapshot | null {
+function toSnapshot(value: Prisma.JsonValue | null): AuditSnapshot | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
-  return value as unknown as CustomerAuditSnapshot
+  return value as unknown as AuditSnapshot
 }
 
 function mapAuditEvent(event: PrismaAuditEvent): AuditEventDto {
