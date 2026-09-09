@@ -1,23 +1,15 @@
-import type { OpportunityDto, OpportunityListQuery, OpportunityStage } from '@cpxlabs-admin/contracts'
-import { Badge, Button, Card, Input, PageHeader, Select } from '@cpxlabs-admin/ui'
+import type { OpportunityDto, OpportunityListQuery } from '@cpxlabs-admin/contracts'
+import { Button, Card, Input, PageHeader, Select } from '@cpxlabs-admin/ui'
 import { useQuery } from '@tanstack/react-query'
 
 import { DataGrid, type DataGridColumnDef, type DataGridSort } from '../../components/data-grid/data-grid'
 import { Can } from '../../platform/authorization/authorization-provider'
 import { appOpportunityService } from './app-opportunity-service'
 import type { OpportunityListSearch } from './opportunity-list-search'
+import { OpportunityStageBadge } from './opportunity-stage-badge'
 import { opportunityListQueryOptions } from './opportunity.queries'
 
 const sortableColumns = new Set(['name', 'accountName', 'amountMinor', 'expectedCloseDate', 'stage', 'updatedAt'])
-
-const stageVariant: Record<OpportunityStage, 'default' | 'secondary' | 'warning' | 'success' | 'destructive' | 'outline'> = {
-  qualification: 'secondary',
-  discovery: 'outline',
-  proposal: 'default',
-  negotiation: 'warning',
-  won: 'success',
-  lost: 'destructive',
-}
 
 function formatMoney(amountMinor: number, currency: string) {
   try {
@@ -69,10 +61,7 @@ export function OpportunityListPage({ search, onSearchChange, onCreate, onOpen }
     {
       accessorKey: 'stage',
       header: 'Stage',
-      cell: (info) => {
-        const stage = info.getValue<OpportunityStage>()
-        return <Badge variant={stageVariant[stage]}>{stage}</Badge>
-      },
+      cell: (info) => <OpportunityStageBadge stage={info.row.original.stage} />,
     },
     { accessorKey: 'expectedCloseDate', header: 'Expected close' },
     { accessorKey: 'version', header: 'Version' },

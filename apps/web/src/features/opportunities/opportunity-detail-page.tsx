@@ -1,21 +1,13 @@
 import type { OpportunityStage } from '@cpxlabs-admin/contracts'
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@cpxlabs-admin/ui'
+import { Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@cpxlabs-admin/ui'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { appOpportunityService } from './app-opportunity-service'
 import { OpportunityServiceError } from './opportunity.service'
+import { OpportunityStageBadge } from './opportunity-stage-badge'
 import { OpportunityWorkflowPanel } from './opportunity-workflow-panel'
 import { opportunityDetailQueryOptions, opportunityKeys } from './opportunity.queries'
-
-const stageVariant: Record<OpportunityStage, 'default' | 'secondary' | 'warning' | 'success' | 'destructive' | 'outline'> = {
-  qualification: 'secondary',
-  discovery: 'outline',
-  proposal: 'default',
-  negotiation: 'warning',
-  won: 'success',
-  lost: 'destructive',
-}
 
 function formatMoney(amountMinor: number, currency: string) {
   try {
@@ -52,9 +44,7 @@ export function OpportunityDetailPage({ opportunityId, onBack }: OpportunityDeta
     },
   })
 
-  if (query.isPending) {
-    return <Card className="p-5 text-sm text-muted-foreground">Loading opportunity…</Card>
-  }
+  if (query.isPending) return <Card className="p-5 text-sm text-muted-foreground">Loading opportunity…</Card>
 
   if (query.isError) {
     return (
@@ -83,7 +73,7 @@ export function OpportunityDetailPage({ opportunityId, onBack }: OpportunityDeta
           <CardContent className="grid gap-5 sm:grid-cols-2">
             <div>
               <p className="m-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">Stage</p>
-              <div className="mt-2"><Badge variant={stageVariant[opportunity.stage]}>{opportunity.stage}</Badge></div>
+              <div className="mt-2"><OpportunityStageBadge stage={opportunity.stage} /></div>
             </div>
             <div>
               <p className="m-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">Value</p>

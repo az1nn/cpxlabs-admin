@@ -74,6 +74,16 @@ test('manager creates opportunities and completes won and lost terminal journeys
   await expect(page.getByRole('button', { name: 'Mark lost' })).toHaveCount(0)
 })
 
+test('admin receives opportunity creation and transition controls', async ({ page }) => {
+  await signIn(page, referenceUsers.admin, '/opportunities')
+  await expect(page.getByRole('button', { name: 'New opportunity' })).toBeVisible()
+
+  const opportunity = await createOpportunityViaApi(page, `Admin Journey ${Date.now()}`)
+  await page.goto(`/opportunities/${opportunity.id}`)
+  await expect(page.getByRole('button', { name: 'Move to Discovery' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Mark lost' })).toBeVisible()
+})
+
 test('stale workflow command refreshes authoritative state instead of retrying', async ({ page }) => {
   await signIn(page, referenceUsers.manager, '/opportunities')
   const opportunity = await createOpportunityViaApi(page, `Conflict Journey ${Date.now()}`)
