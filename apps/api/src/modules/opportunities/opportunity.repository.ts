@@ -86,4 +86,8 @@ export class InMemoryOpportunityRepository implements OpportunityRepository {
     }
     this.opportunities[index] = opportunity
   }
+
+  deleteForWorkflow(id: string) {
+    this.opportunities = this.opportunities.filter((item) => item.id !== id)
+  }
 }
