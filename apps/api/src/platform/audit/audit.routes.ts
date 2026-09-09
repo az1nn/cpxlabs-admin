@@ -19,12 +19,18 @@ const auditQuerySchema = {
   properties: {
     limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
     cursor: { type: 'string', minLength: 1 },
-    subjectType: { type: 'string', enum: ['customer'] },
+    subjectType: { type: 'string', enum: ['customer', 'opportunity'] },
     subjectId: { type: 'string', minLength: 1 },
     actorId: { type: 'string', minLength: 1 },
     action: {
       type: 'string',
-      enum: ['customers.create', 'customers.update', 'customers.delete'],
+      enum: [
+        'customers.create',
+        'customers.update',
+        'customers.delete',
+        'opportunities.create',
+        'opportunities.stage.change',
+      ],
     },
   },
 } as const
