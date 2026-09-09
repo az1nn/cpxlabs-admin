@@ -33,6 +33,8 @@ export function createAuth(options: CreateAuthOptions) {
     },
     rateLimit: {
       enabled: true,
+      window: 60,
+      max: 30,
     },
   })
 }
