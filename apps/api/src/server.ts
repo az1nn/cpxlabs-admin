@@ -1,14 +1,6 @@
 import { loadEnvFile } from 'node:process'
 
-import { buildApp } from './app.js'
-import { PrismaCustomerMutationService } from './modules/customers/customer.mutation-service.js'
-import { PrismaCustomerRepository } from './modules/customers/customer.prisma-repository.js'
-import { PrismaAuditRepository } from './platform/audit/audit.prisma-repository.js'
-import { createAuth } from './platform/authentication/auth.js'
-import { createRequestContextResolver } from './platform/authentication/session.js'
-import { PrismaAccessProfileRepository } from './platform/authorization/access-profile.repository.js'
-import { createAuthorizationGuards } from './platform/authorization/guards.js'
-import { createPrismaClient } from './platform/database/prisma.js'
+import { startTelemetry } from './platform/observability/telemetry.js'
 
 try {
   loadEnvFile('.env')
@@ -23,13 +15,39 @@ try {
   }
 }
 
+const telemetry = await startTelemetry()
+
+const [
+  { buildApp },
+  { PrismaCustomerMutationService },
+  { PrismaCustomerRepository },
+  { PrismaAuditRepository },
+  { createAuth },
+  { createRequestContextResolver },
+  { PrismaAccessProfileRepository },
+  { createAuthorizationGuards },
+  { createPrismaClient },
+] = await Promise.all([
+  import('./app.js'),
+  import('./modules/customers/customer.mutation-service.js'),
+  import('./modules/customers/customer.prisma-repository.js'),
+  import('./platform/audit/audit.prisma-repository.js'),
+  import('./platform/authentication/auth.js'),
+  import('./platform/authentication/session.js'),
+  import('./platform/authorization/access-profile.repository.js'),
+  import('./platform/authorization/guards.js'),
+  import('./platform/database/prisma.js'),
+])
+
 const databaseUrl = process.env.DATABASE_URL?.trim()
 if (!databaseUrl) {
+  await telemetry.shutdown()
   throw new Error('DATABASE_URL is required by the authenticated reference API')
 }
 
 const secret = process.env.BETTER_AUTH_SECRET?.trim()
 if (!secret || secret.length < 32) {
+  await telemetry.shutdown()
   throw new Error('BETTER_AUTH_SECRET must contain at least 32 characters')
 }
 
@@ -65,11 +83,14 @@ const app = buildApp({
 
 app.addHook('onClose', async () => {
   await prisma.$disconnect()
+  await telemetry.shutdown()
 })
 
 try {
   await app.listen({ port, host })
 } catch (error) {
   app.log.error(error)
+  await app.close().catch(() => undefined)
+  await telemetry.shutdown().catch(() => undefined)
   process.exit(1)
 }

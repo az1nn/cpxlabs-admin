@@ -12,4 +12,15 @@ describe('request correlation', () => {
     )
     await app.close()
   })
+
+  it('uses the same request id in error headers and the application error envelope', async () => {
+    const app = buildApp()
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/customers?page=1&pageSize=20',
+    })
+    expect(response.statusCode).toBe(401)
+    expect(response.json().error.requestId).toBe(response.headers['x-request-id'])
+    await app.close()
+  })
 })

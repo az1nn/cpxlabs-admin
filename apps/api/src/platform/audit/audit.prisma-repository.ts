@@ -38,12 +38,16 @@ function toSnapshot(value: Prisma.JsonValue | null): CustomerAuditSnapshot | nul
 function mapAuditEvent(event: PrismaAuditEvent): AuditEventDto {
   return {
     id: event.id,
-    actorId: event.actorId,
-    actorEmail: event.actorEmail,
-    actorName: event.actorName,
+    actor: {
+      id: event.actorId,
+      email: event.actorEmail,
+      name: event.actorName,
+    },
     action: event.action as AuditEventDto['action'],
-    subjectType: event.subjectType as AuditEventDto['subjectType'],
-    subjectId: event.subjectId,
+    subject: {
+      type: event.subjectType as AuditEventDto['subject']['type'],
+      id: event.subjectId,
+    },
     before: toSnapshot(event.before),
     after: toSnapshot(event.after),
     correlationId: event.correlationId,
@@ -120,9 +124,10 @@ export class PrismaAuditRepository implements AuditRepository {
     const visible = hasMore ? rows.slice(0, limit) : rows
     return {
       data: visible.map(mapAuditEvent),
-      ...(hasMore && visible.length > 0
-        ? { nextCursor: encodeCursor(visible[visible.length - 1]!) }
-        : {}),
+      nextCursor:
+        hasMore && visible.length > 0
+          ? encodeCursor(visible[visible.length - 1]!)
+          : null,
     }
   }
 }

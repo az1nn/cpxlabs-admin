@@ -16,12 +16,16 @@ export type CustomerAuditSnapshot = {
 
 export type AuditEventDto = {
   id: string
-  actorId: string
-  actorEmail: string
-  actorName: string
+  actor: {
+    id: string
+    email: string
+    name: string
+  }
   action: AuditAction
-  subjectType: AuditSubjectType
-  subjectId: string
+  subject: {
+    type: AuditSubjectType
+    id: string
+  }
   before: CustomerAuditSnapshot | null
   after: CustomerAuditSnapshot | null
   correlationId: string
@@ -40,5 +44,5 @@ export type AuditEventListQuery = {
 
 export type AuditEventListResponse = {
   data: AuditEventDto[]
-  nextCursor?: string
+  nextCursor: string | null
 }
