@@ -8,9 +8,9 @@
 
 **Purpose**: Pin the authentication dependency, declare environment inputs, and record the cross-cutting provider decision before implementation.
 
-- [ ] T001 Add exact `better-auth` 1.7.3 dependency and required scripts/config support in `apps/api/package.json`
-- [ ] T002 [P] Add authentication/session environment placeholders and seed credential placeholders in `apps/api/.env.example`
-- [ ] T003 [P] Add ADR-0013 documenting Better Auth identity/session boundary and app-owned authorization in `docs/adr/0013-authentication-session-boundary.md`
+- [x] T001 Add exact `better-auth` 1.7.3 dependency and required scripts/config support in `apps/api/package.json`
+- [x] T002 [P] Add authentication/session environment placeholders and seed credential placeholders in `apps/api/.env.example`
+- [x] T003 [P] Add ADR-0013 documenting Better Auth identity/session boundary and app-owned authorization in `docs/adr/0013-authentication-session-boundary.md`
 
 ---
 
@@ -18,19 +18,19 @@
 
 **Purpose**: Build shared contracts, authorization policy, persistence schema, identity adapter, and server guards that block all user stories.
 
-- [ ] T004 [P] Add `ApplicationRole`, `SessionPrincipalDto`, and `SessionResponse` transport contracts in `packages/contracts/src/session.ts` and export them from `packages/contracts/src/index.ts`
-- [ ] T005 Extend `Principal` with display identity/role and add canonical `RequestContext` plus role-to-capability policy in `packages/authorization/src/index.ts`
-- [ ] T006 [P] Add unit coverage for Admin/Manager/Viewer capability mapping and deny-by-default behavior in `packages/authorization/src/index.test.ts`
-- [ ] T007 Add Better Auth identity/session/account/verification models plus `AccessProfile`, `ApplicationRole`, and `AccessStatus` to `apps/api/prisma/schema.prisma`
-- [ ] T008 Create the auth/access PostgreSQL migration under `apps/api/prisma/migrations/`
-- [ ] T009 Add application access repository operations (`getByUserId`, `upsert`, `setStatus`) in `apps/api/src/platform/authorization/access-profile.repository.ts`
-- [ ] T010 [P] Add PostgreSQL integration tests for access profile role/status transitions in `apps/api/src/platform/authorization/access-profile.repository.test.ts`
-- [ ] T011 Create Better Auth factory/configuration with Prisma adapter, cookie/session policy, disabled runtime sign-up, rate limiting, and seed override in `apps/api/src/platform/authentication/auth.ts`
-- [ ] T012 Add Fastify Better Auth bridge for `/api/auth/*` in `apps/api/src/platform/authentication/fastify-auth.ts`
-- [ ] T013 Add identity-session-to-Principal resolution and application-owned `/api/session` handler in `apps/api/src/platform/authentication/session.ts`
-- [ ] T014 Add `requirePrincipal` and `requireCapability` server guards with 401/403 error mapping in `apps/api/src/platform/authorization/guards.ts`
-- [ ] T015 Wire auth, session, access repository, and guards into `buildApp` in `apps/api/src/app.ts` and runtime startup in `apps/api/src/server.ts`
-- [ ] T016 Update controlled database seed to create reference Admin/Manager/Viewer identities through the seed-only auth path and access profiles in `apps/api/src/platform/database/seed.ts`
+- [x] T004 [P] Add `ApplicationRole`, `SessionPrincipalDto`, and `SessionResponse` transport contracts in `packages/contracts/src/session.ts` and export them from `packages/contracts/src/index.ts`
+- [x] T005 Extend `Principal` with display identity/role and add canonical `RequestContext` plus role-to-capability policy in `packages/authorization/src/index.ts`
+- [x] T006 [P] Add unit coverage for Admin/Manager/Viewer capability mapping and deny-by-default behavior in `packages/authorization/src/index.test.ts`
+- [x] T007 Add Better Auth identity/session/account/verification models plus `AccessProfile`, `ApplicationRole`, and `AccessStatus` to `apps/api/prisma/schema.prisma`
+- [x] T008 Create the auth/access PostgreSQL migration under `apps/api/prisma/migrations/`
+- [x] T009 Add application access repository operations (`getByUserId`, `upsert`, `setStatus`) in `apps/api/src/platform/authorization/access-profile.repository.ts`
+- [x] T010 [P] Add PostgreSQL integration tests for access profile role/status transitions in `apps/api/src/platform/authorization/access-profile.repository.test.ts`
+- [x] T011 Create Better Auth factory/configuration with Prisma adapter, cookie/session policy, disabled runtime sign-up, rate limiting, and seed override in `apps/api/src/platform/authentication/auth.ts`
+- [x] T012 Add Fastify Better Auth bridge for `/api/auth/*` in `apps/api/src/platform/authentication/fastify-auth.ts`
+- [x] T013 Add identity-session-to-Principal resolution and application-owned `/api/session` handler in `apps/api/src/platform/authentication/session.ts`
+- [x] T014 Add `requirePrincipal` and `requireCapability` server guards with 401/403 error mapping in `apps/api/src/platform/authorization/guards.ts`
+- [x] T015 Wire auth, session, access repository, and guards into `buildApp` in `apps/api/src/app.ts` and runtime startup in `apps/api/src/server.ts`
+- [x] T016 Update controlled database seed to create reference Admin/Manager/Viewer identities through the seed-only auth path and access profiles in `apps/api/src/platform/database/seed.ts`
 
 **Checkpoint**: Identity/session mechanics and current authorization state can resolve a Principal without any customer route or UI changes.
 
@@ -44,18 +44,18 @@
 
 ### Tests for User Story 1
 
-- [ ] T017 [P] [US1] Add Fastify integration tests for sign-in, `/api/session`, invalid credentials, and sign-out in `apps/api/src/platform/authentication/auth.integration.test.ts`
-- [ ] T018 [P] [US1] Add web authentication service tests for sign-in/sign-out/session error handling in `apps/web/src/features/authentication/api/auth-service.test.ts`
-- [ ] T019 [P] [US1] Add Playwright session journey covering redirect → sign-in → reload restore → sign-out and asserting no reusable auth secret is stored in browser storage in `apps/web/e2e/auth-session.spec.ts`
+- [x] T017 [P] [US1] Add Fastify integration tests for sign-in, `/api/session`, invalid credentials, and sign-out in `apps/api/src/platform/authentication/auth.integration.test.ts`
+- [x] T018 [P] [US1] Add web authentication service tests for sign-in/sign-out/session error handling in `apps/web/src/features/authentication/api/auth-service.test.ts`
+- [x] T019 [P] [US1] Add Playwright session journey covering redirect → sign-in → reload restore → sign-out and asserting no reusable auth secret is stored in browser storage in `apps/web/e2e/auth-session.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Add provider-isolated web `AuthService` for sign-in/sign-out and app session fetch in `apps/web/src/features/authentication/api/auth-service.ts`
-- [ ] T021 [US1] Add TanStack Query-backed authentication/session provider in `apps/web/src/platform/authentication/auth-provider.tsx`
-- [ ] T022 [P] [US1] Add accessible sign-in form with RHF/Zod and non-enumerating error copy in `apps/web/src/features/authentication/components/sign-in-form.tsx`
-- [ ] T023 [US1] Add public sign-in page and safe return-target handling in `apps/web/src/features/authentication/views/sign-in-page.tsx`
-- [ ] T024 [US1] Replace demo principal bootstrap with authenticated session principal and route guards in `apps/web/src/main.tsx`, `apps/web/src/router.tsx`, and `apps/web/src/platform/authorization/authorization-provider.tsx`
-- [ ] T025 [US1] Add authenticated shell sign-out action and session-state clearing in `apps/web/src/platform/shell/app-shell.tsx`
+- [x] T020 [US1] Add provider-isolated web `AuthService` for sign-in/sign-out and app session fetch in `apps/web/src/features/authentication/api/auth-service.ts`
+- [x] T021 [US1] Add TanStack Query-backed authentication/session provider in `apps/web/src/platform/authentication/auth-provider.tsx`
+- [x] T022 [P] [US1] Add accessible sign-in form with RHF/Zod and non-enumerating error copy in `apps/web/src/features/authentication/components/sign-in-form.tsx`
+- [x] T023 [US1] Add public sign-in page and safe return-target handling in `apps/web/src/features/authentication/views/sign-in-page.tsx`
+- [x] T024 [US1] Replace demo principal bootstrap with authenticated session principal and route guards in `apps/web/src/main.tsx`, `apps/web/src/router.tsx`, and `apps/web/src/platform/authorization/authorization-provider.tsx`
+- [x] T025 [US1] Add authenticated shell sign-out action and session-state clearing in `apps/web/src/platform/shell/app-shell.tsx`
 
 **Checkpoint**: User Story 1 is deployable and independently demonstrates real authentication/session behavior.
 
@@ -69,15 +69,15 @@
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Add API authorization matrix tests for customer routes in `apps/api/src/modules/customers/customer.authorization.test.ts`
-- [ ] T027 [P] [US2] Add web authorization tests proving session-derived capabilities control customer actions in `apps/web/src/platform/authorization/authorization-provider.test.tsx`
-- [ ] T028 [P] [US2] Add Playwright Admin/Manager/Viewer customer matrix coverage in `apps/web/e2e/auth-role-matrix.spec.ts`
+- [x] T026 [P] [US2] Add API authorization matrix tests for customer routes in `apps/api/src/modules/customers/customer.authorization.test.ts`
+- [x] T027 [P] [US2] Add web authorization tests proving session-derived capabilities control customer actions in `apps/web/src/platform/authorization/authorization-provider.test.tsx`
+- [x] T028 [P] [US2] Add Playwright Admin/Manager/Viewer customer matrix coverage in `apps/web/e2e/auth-role-matrix.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Apply `customers.read/create/edit/delete` server guards to every customer endpoint in `apps/api/src/modules/customers/customer.routes.ts`
-- [ ] T030 [US2] Remove `demoPrincipal` from runtime authorization flow and ensure customer navigation/actions derive exclusively from `/api/session` Principal in `apps/web/src/platform/authorization/` and `apps/web/src/features/customers/`
-- [ ] T031 [US2] Ensure direct forbidden mutations return existing API error envelope with `FORBIDDEN` and no repository mutation in `apps/api/src/platform/authorization/guards.ts`
+- [x] T029 [US2] Apply `customers.read/create/edit/delete` server guards to every customer endpoint in `apps/api/src/modules/customers/customer.routes.ts`
+- [x] T030 [US2] Remove `demoPrincipal` from runtime authorization flow and ensure customer navigation/actions derive exclusively from `/api/session` Principal in `apps/web/src/platform/authorization/` and `apps/web/src/features/customers/`
+- [x] T031 [US2] Ensure direct forbidden mutations return existing API error envelope with `FORBIDDEN` and no repository mutation in `apps/api/src/platform/authorization/guards.ts`
 
 **Checkpoint**: UI and API independently enforce the same role matrix; API remains authoritative.
 
@@ -91,14 +91,14 @@
 
 ### Tests for User Story 3
 
-- [ ] T032 [P] [US3] Add API tests for missing access profile, disabled profile, revoked session, and 401-versus-403 semantics in `apps/api/src/platform/authentication/session.authorization.test.ts`
-- [ ] T033 [P] [US3] Add Playwright coverage for a session becoming unauthorized during a protected journey in `apps/web/e2e/auth-revocation.spec.ts`
+- [x] T032 [P] [US3] Add API tests for missing access profile, disabled profile, revoked session, and 401-versus-403 semantics in `apps/api/src/platform/authentication/session.authorization.test.ts`
+- [x] T033 [P] [US3] Add Playwright coverage for a session becoming unauthorized during a protected journey in `apps/web/e2e/auth-revocation.spec.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T034 [US3] Make Principal resolution fail closed for missing/disabled access profiles and map disabled access to `ACCESS_DISABLED` in `apps/api/src/platform/authentication/session.ts`
-- [ ] T035 [US3] Make the web auth provider transition expired/revoked/disabled session results to an unauthenticated or access-denied state without retaining stale capabilities in `apps/web/src/platform/authentication/auth-provider.tsx`
-- [ ] T036 [US3] Ensure role/status changes are read from current server access state on each protected request and are not embedded as trusted client authority in `apps/api/src/platform/authorization/guards.ts`
+- [x] T034 [US3] Make Principal resolution fail closed for missing/disabled access profiles and map disabled access to `ACCESS_DISABLED` in `apps/api/src/platform/authentication/session.ts`
+- [x] T035 [US3] Make the web auth provider transition expired/revoked/disabled session results to an unauthenticated or access-denied state without retaining stale capabilities in `apps/web/src/platform/authentication/auth-provider.tsx`
+- [x] T036 [US3] Ensure role/status changes are read from current server access state on each protected request and are not embedded as trusted client authority in `apps/api/src/platform/authorization/guards.ts`
 
 **Checkpoint**: Revocation and access changes are reflected on the next authoritative request.
 
@@ -108,12 +108,12 @@
 
 **Purpose**: Finish accessibility, documentation, deterministic CI, security observability, and convergence evidence.
 
-- [ ] T037 [P] Add Storybook stories and axe coverage for sign-in states in `apps/storybook/stories/sign-in-form.stories.tsx`
-- [ ] T038 [P] Update local auth/PostgreSQL setup and security notes in `docs/development/postgresql.md` and `docs/development/authentication.md`
-- [ ] T039 Update Vercel/deployment documentation for same-origin auth proxy requirements and required secrets in `docs/deployment/vercel.md`
-- [ ] T040 Update CI seed/auth environment and ensure PostgreSQL-backed browser tests exercise Better Auth in `.github/workflows/ci.yml`
-- [ ] T041 Run and fix `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm test:storybook`, and `pnpm e2e` without weakening existing gates
-- [ ] T042 Add structured security-event emission for failed authentication, disabled access, and forbidden authorization decisions without logging credentials/session secrets in `apps/api/src/platform/authentication/security-events.ts`, `apps/api/src/platform/authentication/session.ts`, and `apps/api/src/platform/authorization/guards.ts`, with assertions in auth/authorization tests
+- [x] T037 [P] Add Storybook stories and axe coverage for sign-in states in `apps/storybook/stories/sign-in-form.stories.tsx`
+- [x] T038 [P] Update local auth/PostgreSQL setup and security notes in `docs/development/postgresql.md` and `docs/development/authentication.md`
+- [x] T039 Update Vercel/deployment documentation for same-origin auth proxy requirements and required secrets in `docs/deployment/vercel.md`
+- [x] T040 Update CI seed/auth environment and ensure PostgreSQL-backed browser tests exercise Better Auth in `.github/workflows/ci.yml`
+- [x] T041 Run and fix `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm test:storybook`, and `pnpm e2e` without weakening existing gates
+- [x] T042 Add structured security-event emission for failed authentication, disabled access, and forbidden authorization decisions without logging credentials/session secrets in `apps/api/src/platform/authentication/security-events.ts`, `apps/api/src/platform/authentication/session.ts`, and `apps/api/src/platform/authorization/guards.ts`, with assertions in auth/authorization tests
 - [ ] T043 Validate all SC-001 through SC-008 and record any remaining convergence gaps in `specs/005-authentication-authorization/tasks.md`
 
 ---
