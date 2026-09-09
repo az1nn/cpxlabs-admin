@@ -83,6 +83,18 @@ describeDatabase('authentication and authorization integration', () => {
     await prisma.$disconnect()
   })
 
+  it('rejects invalid credentials without returning submitted secrets', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-in/email',
+      headers: { origin },
+      payload: { email: emails.admin, password: 'DefinitelyWrong123!' },
+    })
+
+    expect([400, 401]).toContain(response.statusCode)
+    expect(response.body).not.toContain('DefinitelyWrong123!')
+  })
+
   it('rejects protected requests without a session and resolves the canonical session after sign-in', async () => {
     const anonymous = await app.inject({
       method: 'GET',
@@ -113,6 +125,40 @@ describeDatabase('authentication and authorization integration', () => {
         ],
       },
     })
+  })
+
+  it('treats a deleted provider session as revoked on the next request', async () => {
+    const cookie = await signIn('admin')
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: emails.admin } })
+    await prisma.session.deleteMany({ where: { userId: user.id } })
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/session',
+      headers: { cookie },
+    })
+
+    expect(response.statusCode).toBe(401)
+    expect(response.json()).toMatchObject({ error: { code: 'AUTHENTICATION_REQUIRED' } })
+  })
+
+  it('fails closed when an authenticated identity has no application access profile', async () => {
+    const cookie = await signIn('manager')
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: emails.manager } })
+    await prisma.accessProfile.delete({ where: { userId: user.id } })
+
+    try {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/session',
+        headers: { cookie },
+      })
+
+      expect(response.statusCode).toBe(403)
+      expect(response.json()).toMatchObject({ error: { code: 'ACCESS_DISABLED' } })
+    } finally {
+      await accessProfiles.upsert({ userId: user.id, role: 'manager', status: 'active' })
+    }
   })
 
   it('enforces viewer and manager capabilities on direct API requests', async () => {
