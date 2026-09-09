@@ -4,6 +4,7 @@ import { InMemoryCustomerMutationService, type CustomerMutationService } from '.
 import { InMemoryCustomerRepository, type CustomerRepository } from './modules/customers/customer.repository.js'
 import { customerRoutes } from './modules/customers/customer.routes.js'
 import { InMemoryAuditRepository, type AuditRepository } from './platform/audit/audit.repository.js'
+import { auditRoutes } from './platform/audit/audit.routes.js'
 import type { AppAuth } from './platform/authentication/auth.js'
 import { registerAuthenticationRoutes } from './platform/authentication/fastify-auth.js'
 import { registerApplicationSessionRoute, type RequestContextResolver } from './platform/authentication/session.js'
@@ -32,7 +33,7 @@ export function buildApp(options: BuildAppOptions = {}) {
   installCorrelation(app)
   installErrorHandler(app)
 
-  app.get('/health', async () => ({ status: 'ok' }))
+  app.get('/health', { config: { otel: false } }, async () => ({ status: 'ok' }))
 
   if (options.authentication) {
     void registerAuthenticationRoutes(app, options.authentication.auth)
@@ -47,11 +48,16 @@ export function buildApp(options: BuildAppOptions = {}) {
   const customerMutationService =
     options.customerMutationService ??
     new InMemoryCustomerMutationService(customerRepository, auditRepository)
+  const authorization = options.authorization ?? createUnauthenticatedGuards()
 
   app.register(customerRoutes, {
     repository: customerRepository,
     mutationService: customerMutationService,
-    authorization: options.authorization ?? createUnauthenticatedGuards(),
+    authorization,
+  })
+  app.register(auditRoutes, {
+    repository: auditRepository,
+    authorization,
   })
 
   return app

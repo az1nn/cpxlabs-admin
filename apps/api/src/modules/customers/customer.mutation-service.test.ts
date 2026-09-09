@@ -57,8 +57,8 @@ describeDatabase('PrismaCustomerMutationService', () => {
       'customers.delete',
       'customers.update',
     ])
-    expect(events.data.every((event) => event.actorId === principal.id)).toBe(true)
-    expect(events.data.every((event) => event.subjectId === created.id)).toBe(true)
+    expect(events.data.every((event) => event.actor.id === principal.id)).toBe(true)
+    expect(events.data.every((event) => event.subject.id === created.id)).toBe(true)
     expect(events.data.some((event) => event.action === 'customers.delete' && event.after === null)).toBe(true)
     expect(await prisma.customer.findUnique({ where: { id: created.id } })).toBeNull()
   })
