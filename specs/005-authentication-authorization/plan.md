@@ -50,11 +50,12 @@ No constitution violations require Complexity Tracking.
 3. **Session transport**: opaque server-validated cookie session; session credentials are not copied into localStorage/sessionStorage.
 4. **Principal bootstrap**: app-owned `GET /api/session` resolves Better Auth identity + current application access profile and returns a transport-safe principal DTO.
 5. **Server context**: protected Fastify routes resolve `RequestContext` and deny unauthenticated/unauthorized access before domain behavior.
-6. **Role mapping**: `admin`, `manager`, `viewer` map to typed capabilities in project-owned code; capabilities are derived, not persisted individually.
+6. **Role mapping**: `admin`, `manager`, `viewer` map to typed capabilities in project-owned code; capabilities are derived, not persisted individually. The existing stable update capability key remains `customers.update`.
 7. **Disabled access**: access-profile status is checked server-side on principal resolution. Existing identity sessions cannot bypass a disabled application profile.
 8. **Self-registration**: disabled in normal runtime. Reference users are provisioned only by controlled development/test seed setup; user-management UI is out of scope.
 9. **Session caching**: provider-side session cookie caching is not enabled in the first slice; application capabilities are always derived from current server-side access state.
-10. **Authentication UX**: app-owned `AuthService`/session query boundary isolates provider calls from feature and shell code.
+10. **Authentication UX**: app-owned `AuthService` and session provider live under `platform/authentication` because they are cross-cutting application infrastructure consumed by router/shell/features. The user-facing sign-in UI remains a feature slice under `features/auth`.
+11. **Demo deployment**: `VITE_AUTH_MODE=demo` is an explicit showcase mode paired with the demo data provider. Server mode never falls back to demo auth after an API/session failure.
 
 ## Project Structure
 
@@ -92,8 +93,10 @@ apps/api/
     │   ├── authentication/
     │   │   ├── auth.ts              # Better Auth configuration/factory
     │   │   ├── fastify-auth.ts      # /api/auth/* bridge
-    │   │   └── session.ts           # identity -> Principal/RequestContext
+    │   │   ├── session.ts           # identity -> Principal/RequestContext
+    │   │   └── security-events.ts   # secret-safe structured security events
     │   ├── authorization/
+    │   │   ├── access-profile.repository.ts
     │   │   └── guards.ts            # requirePrincipal/requireCapability
     │   └── database/
     │       └── seed.ts
@@ -101,19 +104,19 @@ apps/api/
         └── customer.routes.ts       # capability-enforced resource routes
 
 apps/web/src/
-├── features/authentication/
-│   ├── api/auth-service.ts
-│   ├── components/sign-in-form.tsx
-│   └── views/sign-in-page.tsx
+├── features/auth/
+│   ├── sign-in-form.tsx
+│   └── sign-in-page.tsx
 ├── platform/authentication/
-│   ├── auth-provider.tsx
-│   └── session.ts
+│   ├── auth-client.ts               # Better Auth browser adapter
+│   ├── auth-service.ts              # provider-neutral app auth service
+│   └── session-provider.tsx         # TanStack Query session state
 ├── platform/authorization/
 │   └── authorization-provider.tsx
 └── router.tsx                       # public sign-in + protected route guard
 ```
 
-**Structure Decision**: Authentication mechanics live in `platform` boundaries, the user-facing sign-in slice lives in `features/authentication`, and resource modules only see RequestContext/capability guards. No new shared auth package is introduced because there is not yet a second runtime consumer requiring one.
+**Structure Decision**: Provider/session mechanics live in `platform/authentication`; the user-facing sign-in slice lives in `features/auth`; resource modules only see RequestContext/capability guards. No new shared auth package is introduced because there is not yet a second runtime consumer requiring one.
 
 ## Phase 0: Research
 

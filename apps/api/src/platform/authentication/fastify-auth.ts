@@ -1,6 +1,7 @@
 import { fromNodeHeaders } from 'better-auth/node'
 import type { FastifyInstance } from 'fastify'
 
+import { emitSecurityEvent } from './security-events.js'
 import type { AppAuth } from './auth.js'
 
 export async function registerAuthenticationRoutes(
@@ -25,6 +26,15 @@ export async function registerAuthenticationRoutes(
       })
 
       const response = await auth.handler(authRequest)
+
+      if (
+        request.method === 'POST' &&
+        url.pathname.endsWith('/sign-in/email') &&
+        response.status >= 400
+      ) {
+        emitSecurityEvent(request, 'authentication.failed')
+      }
+
       reply.status(response.status)
 
       const getSetCookie = Reflect.get(response.headers, 'getSetCookie')
