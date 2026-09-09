@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 
 import type { AuthorizationGuards } from '../../platform/authorization/guards.js'
+import type { CustomerMutationContext, CustomerMutationService } from './customer.mutation-service.js'
 import type { CustomerRepository } from './customer.repository.js'
 import {
   customerInputSchema,
@@ -23,11 +24,24 @@ type CustomerListQuery = {
 
 export type CustomerRoutesOptions = {
   repository: CustomerRepository
+  mutationService: CustomerMutationService
   authorization: AuthorizationGuards
 }
 
+function mutationContext(
+  requestId: string,
+  principal: CustomerMutationContext['principal'],
+  tenant: string | undefined,
+): CustomerMutationContext {
+  return {
+    principal,
+    requestId,
+    ...(tenant !== undefined ? { tenantId: tenant } : {}),
+  }
+}
+
 export async function customerRoutes(app: FastifyInstance, options: CustomerRoutesOptions) {
-  const { repository, authorization } = options
+  const { repository, mutationService, authorization } = options
 
   app.get<{ Querystring: CustomerListQuery }>('/api/customers', {
     schema: {
@@ -63,8 +77,11 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
       response: { 201: customerSchema },
     },
   }, async (request, reply) => {
-    await authorization.requireCapability(request, 'customers.create')
-    const customer = await repository.create(request.body)
+    const context = await authorization.requireCapability(request, 'customers.create')
+    const customer = await mutationService.create(
+      request.body,
+      mutationContext(request.id, context.principal, context.tenant),
+    )
     return reply.status(201).send(customer)
   })
 
@@ -75,15 +92,22 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
       response: { 200: customerSchema },
     },
   }, async (request) => {
-    await authorization.requireCapability(request, 'customers.update')
-    return repository.update(request.params.customerId, request.body)
+    const context = await authorization.requireCapability(request, 'customers.update')
+    return mutationService.update(
+      request.params.customerId,
+      request.body,
+      mutationContext(request.id, context.principal, context.tenant),
+    )
   })
 
   app.delete<{ Params: CustomerParams }>('/api/customers/:customerId', {
     schema: { params: customerParamsSchema },
   }, async (request, reply) => {
-    await authorization.requireCapability(request, 'customers.delete')
-    await repository.delete(request.params.customerId)
+    const context = await authorization.requireCapability(request, 'customers.delete')
+    await mutationService.delete(
+      request.params.customerId,
+      mutationContext(request.id, context.principal, context.tenant),
+    )
     return reply.status(204).send()
   })
 }

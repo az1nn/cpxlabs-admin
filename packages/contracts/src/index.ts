@@ -1,4 +1,5 @@
 export * from './api-error'
+export * from './audit'
 export * from './data-provider'
 export * from './resource'
 export * from './session'
