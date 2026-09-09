@@ -6,6 +6,16 @@ export type SecurityEvent =
   | 'access.disabled'
   | 'authorization.forbidden'
 
+const sensitiveMetadataKey = /authorization|cookie|password|secret|token/i
+
+function sanitizeMetadata(
+  metadata: Record<string, string | number | boolean | undefined>,
+) {
+  return Object.fromEntries(
+    Object.entries(metadata).filter(([key]) => !sensitiveMetadataKey.test(key)),
+  )
+}
+
 export function emitSecurityEvent(
   request: FastifyRequest,
   event: SecurityEvent,
@@ -17,7 +27,7 @@ export function emitSecurityEvent(
       requestId: request.id,
       method: request.method,
       path: request.url.split('?')[0],
-      ...metadata,
+      ...sanitizeMetadata(metadata),
     },
     'Security event',
   )
