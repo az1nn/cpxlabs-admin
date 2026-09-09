@@ -13,41 +13,66 @@ Configure the Vercel project with:
 - Build Command: provided by `apps/web/vercel.json`
 - Output Directory: `dist`
 
-`vercel.json` rewrites application routes to `index.html`, while preserving `/api/*` for a future same-origin API/proxy.
+`vercel.json` rewrites application routes to `index.html` while preserving `/api/*` for the reference API/reverse proxy.
 
-## Data provider modes
+## Demo deployment
 
-The first deployment requires no backend:
+A frontend-only preview remains available with no backend or secrets:
 
 ```env
 VITE_DATA_PROVIDER=demo
+VITE_AUTH_MODE=demo
 VITE_API_BASE_URL=/api
 ```
 
-For an HTTP backend:
+Demo auth is an explicit showcase mode. It is not a fallback for failed server authentication and must not be used as a production security model.
+
+## Server-authenticated deployment
+
+For the reference enterprise topology:
 
 ```env
 VITE_DATA_PROVIDER=http
-VITE_API_BASE_URL=https://api.example.com/api
+VITE_AUTH_MODE=server
+VITE_API_BASE_URL=/api
 ```
 
-The preferred production topology is same-origin (`/api`) behind the deployment edge/reverse proxy because it simplifies session cookies, CSRF policy, CORS and observability correlation. A separate API origin remains supported when required.
+The preferred production topology keeps browser API calls same-origin (`/api`) behind the deployment edge/reverse proxy. The API environment must separately provide at least:
+
+- `DATABASE_URL`
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL` using the externally reachable API/auth origin expected by Better Auth
+- `APP_ORIGIN` matching the allowed SPA origin
+
+Reference seed credentials are not production deployment secrets and `db:seed` must not be used as the production provisioning mechanism.
+
+## Session and proxy requirements
+
+The browser relies on secure cookie sessions rather than browser-stored bearer tokens. The deployment edge must therefore preserve:
+
+- request cookies from the SPA to `/api/*`;
+- all `Set-Cookie` headers returned by the authentication API;
+- `Host`/forwarded protocol information required to reconstruct the public request URL;
+- same-origin semantics unless a separately reviewed CORS/CSRF/cookie design is introduced.
+
+Do not rewrite `/api/*` to `index.html`. SPA fallback applies only to application routes.
 
 ## Vercel project creation
 
 1. Import `az1nn/cpxlabs-admin` from GitHub.
 2. Set Root Directory to `apps/web`.
 3. Confirm Vite is detected.
-4. Deploy with demo mode first.
-5. Verify direct navigation to `/customers`, `/customers/new` and `/customers/cus_001` resolves to the SPA.
-6. Configure `VITE_DATA_PROVIDER=http` only after an API is available.
+4. Deploy with `VITE_DATA_PROVIDER=demo` and `VITE_AUTH_MODE=demo` for a frontend-only preview, or wire `/api` before enabling server mode.
+5. Verify direct navigation to `/customers`, `/customers/new`, `/customers/cus_001`, and `/sign-in` resolves to the SPA.
+6. For server mode, verify sign-in returns a cookie and `/api/session` succeeds after a full page reload.
+7. Verify protected routes redirect to `/sign-in` after logout/revocation.
 
 ## Preview deployments
 
-Every pull request can produce a Vercel preview. No secrets are required while demo mode is active.
+Frontend-only preview deployments require no authentication secrets in demo mode.
 
-When HTTP mode is enabled, configure `VITE_API_BASE_URL` independently for Preview and Production environments.
+A server-authenticated Preview requires an isolated API/database or another explicitly approved preview environment. Never point an untrusted preview deployment at production session infrastructure.
 
 ## Contract boundary
 
-The web application never imports a backend implementation. It depends only on `DataProvider` plus the stable HTTP conventions documented in ADR-009. This allows the reference Fastify API to be introduced without changing resource screens.
+The web application does not trust Better Auth provider objects as application authority. It consumes the application-owned `/api/session` contract and server-derived capabilities. Better Auth remains replaceable identity/session infrastructure; Fastify remains authoritative for application authorization.
