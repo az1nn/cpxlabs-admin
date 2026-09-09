@@ -1,5 +1,6 @@
 export * from './api-error'
 export * from './audit'
 export * from './data-provider'
+export * from './opportunity'
 export * from './resource'
 export * from './session'
