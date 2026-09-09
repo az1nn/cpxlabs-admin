@@ -7,6 +7,9 @@ export type ApiErrorCode =
   | 'rate_limit'
   | 'infrastructure'
   | 'unknown'
+  | 'AUTHENTICATION_REQUIRED'
+  | 'ACCESS_DISABLED'
+  | 'FORBIDDEN'
 
 export type ApiErrorBody = {
   code: ApiErrorCode

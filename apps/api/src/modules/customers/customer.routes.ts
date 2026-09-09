@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 
+import type { AuthorizationGuards } from '../../platform/authorization/guards.js'
 import type { CustomerRepository } from './customer.repository.js'
 import {
   customerInputSchema,
@@ -22,10 +23,11 @@ type CustomerListQuery = {
 
 export type CustomerRoutesOptions = {
   repository: CustomerRepository
+  authorization: AuthorizationGuards
 }
 
 export async function customerRoutes(app: FastifyInstance, options: CustomerRoutesOptions) {
-  const { repository } = options
+  const { repository, authorization } = options
 
   app.get<{ Querystring: CustomerListQuery }>('/api/customers', {
     schema: {
@@ -33,6 +35,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
       response: { 200: customerListResponseSchema },
     },
   }, async (request) => {
+    await authorization.requireCapability(request, 'customers.read')
     const query = request.query
     return repository.list({
       page: query.page,
@@ -49,7 +52,10 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
       params: customerParamsSchema,
       response: { 200: customerSchema },
     },
-  }, async (request) => repository.get(request.params.customerId))
+  }, async (request) => {
+    await authorization.requireCapability(request, 'customers.read')
+    return repository.get(request.params.customerId)
+  })
 
   app.post<{ Body: CustomerInput }>('/api/customers', {
     schema: {
@@ -57,6 +63,7 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
       response: { 201: customerSchema },
     },
   }, async (request, reply) => {
+    await authorization.requireCapability(request, 'customers.create')
     const customer = await repository.create(request.body)
     return reply.status(201).send(customer)
   })
@@ -67,11 +74,15 @@ export async function customerRoutes(app: FastifyInstance, options: CustomerRout
       body: customerInputSchema,
       response: { 200: customerSchema },
     },
-  }, async (request) => repository.update(request.params.customerId, request.body))
+  }, async (request) => {
+    await authorization.requireCapability(request, 'customers.update')
+    return repository.update(request.params.customerId, request.body)
+  })
 
   app.delete<{ Params: CustomerParams }>('/api/customers/:customerId', {
     schema: { params: customerParamsSchema },
   }, async (request, reply) => {
+    await authorization.requireCapability(request, 'customers.delete')
     await repository.delete(request.params.customerId)
     return reply.status(204).send()
   })

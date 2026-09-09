@@ -1,15 +1,22 @@
 import { expect, test } from '@playwright/test'
 
+import { referenceUsers, signIn } from './auth'
+
 function isCustomerApiResponse(response: import('@playwright/test').Response, method: string) {
   const url = new URL(response.url())
   return url.pathname.startsWith('/api/customers') && response.request().method() === method
 }
 
-test('customer CRUD journey traverses the real HTTP API', async ({ page }) => {
+test('admin customer CRUD journey traverses the authenticated real HTTP API', async ({ page }) => {
+  await signIn(page, referenceUsers.admin, '/customers')
+
   const initialListResponse = page.waitForResponse((response) => isCustomerApiResponse(response, 'GET'))
   await page.goto('/customers')
 
   await expect((await initialListResponse).ok()).toBe(true)
+  await expect(page.getByRole('heading', { name: 'Customers' })).toBeVisible()
+
+  await page.reload()
   await expect(page.getByRole('heading', { name: 'Customers' })).toBeVisible()
 
   await page.getByLabel('Search').fill('Acme')
@@ -52,4 +59,9 @@ test('customer CRUD journey traverses the real HTTP API', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Customers' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'E2E Customer Updated' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Sign out' }).click()
+  await expect(page).toHaveURL(/\/sign-in/)
+  await page.goto('/customers')
+  await expect(page).toHaveURL(/\/sign-in\?redirect=/)
 })

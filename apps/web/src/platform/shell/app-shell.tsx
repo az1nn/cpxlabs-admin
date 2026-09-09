@@ -1,6 +1,8 @@
+import { Button } from '@cpxlabs-admin/ui'
 import { useLocation, useRouter } from '@tanstack/react-router'
-import type { MouseEvent, PropsWithChildren } from 'react'
+import { useState, type MouseEvent, type PropsWithChildren } from 'react'
 
+import { useAppSession } from '../authentication/session-provider'
 import { useAuthorization } from '../authorization/authorization-provider'
 import { resourceRegistry } from '../resources/resources'
 import { getNavigationItems } from './navigation'
@@ -8,7 +10,9 @@ import { getNavigationItems } from './navigation'
 export function AppShell({ children }: PropsWithChildren) {
   const router = useRouter()
   const location = useLocation()
+  const session = useAppSession()
   const authorization = useAuthorization()
+  const [isSigningOut, setIsSigningOut] = useState(false)
   const navigation = getNavigationItems(resourceRegistry, authorization.can)
 
   const navigate = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -25,6 +29,16 @@ export function AppShell({ children }: PropsWithChildren) {
 
     event.preventDefault()
     router.history.push(href)
+  }
+
+  const signOut = async () => {
+    setIsSigningOut(true)
+    try {
+      await session.signOut()
+      router.history.replace('/sign-in')
+    } finally {
+      setIsSigningOut(false)
+    }
   }
 
   return (
@@ -80,14 +94,27 @@ export function AppShell({ children }: PropsWithChildren) {
       </aside>
 
       <div className="min-w-0">
-        <header className="flex h-16 items-center justify-between border-b bg-card px-5 sm:px-7">
+        <header className="flex min-h-16 items-center justify-between gap-4 border-b bg-card px-5 py-3 sm:px-7">
           <div>
             <p className="m-0 text-sm font-semibold">Enterprise workspace</p>
             <p className="m-0 mt-0.5 text-xs text-muted-foreground">Reusable admin platform</p>
           </div>
-          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            {authorization.principal?.id ?? 'Anonymous'}
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right sm:block">
+              <p className="m-0 text-sm font-medium">{authorization.principal?.name}</p>
+              <p className="m-0 text-xs capitalize text-muted-foreground">
+                {authorization.principal?.role}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isSigningOut}
+              onClick={() => void signOut()}
+            >
+              {isSigningOut ? 'Signing out…' : 'Sign out'}
+            </Button>
+          </div>
         </header>
         <main className="mx-auto w-full max-w-[1600px] p-5 sm:p-7">{children}</main>
       </div>
