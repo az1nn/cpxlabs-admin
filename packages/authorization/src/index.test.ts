@@ -9,6 +9,7 @@ describe('role capability policy', () => {
       'customers.create',
       'customers.update',
       'customers.delete',
+      'audit.read',
     ])
     expect([...capabilitiesForRole('manager')]).toEqual([
       'customers.read',
@@ -29,5 +30,6 @@ describe('role capability policy', () => {
     expect(can(viewer, 'customers.read')).toBe(true)
     expect(can(viewer, 'customers.update')).toBe(false)
     expect(can(viewer, 'customers.delete')).toBe(false)
+    expect(can(viewer, 'audit.read')).toBe(false)
   })
 })

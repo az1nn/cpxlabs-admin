@@ -47,6 +47,28 @@ model Customer {
   @@map("customers")
 }
 
+model AuditEvent {
+  id            String   @id @default(cuid())
+  actorId       String   @map("actor_id")
+  actorEmail    String   @map("actor_email")
+  actorName     String   @map("actor_name")
+  action        String
+  subjectType   String   @map("subject_type")
+  subjectId     String   @map("subject_id")
+  before        Json?
+  after         Json?
+  correlationId String   @map("correlation_id")
+  tenantId      String?  @map("tenant_id")
+  occurredAt    DateTime @default(now()) @map("occurred_at")
+
+  @@index([occurredAt, id])
+  @@index([actorId, occurredAt])
+  @@index([action, occurredAt])
+  @@index([subjectType, subjectId, occurredAt])
+  @@index([correlationId])
+  @@map("audit_events")
+}
+
 model User {
   id            String        @id
   name          String

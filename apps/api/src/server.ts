@@ -1,7 +1,9 @@
 import { loadEnvFile } from 'node:process'
 
 import { buildApp } from './app.js'
+import { PrismaCustomerMutationService } from './modules/customers/customer.mutation-service.js'
 import { PrismaCustomerRepository } from './modules/customers/customer.prisma-repository.js'
+import { PrismaAuditRepository } from './platform/audit/audit.prisma-repository.js'
 import { createAuth } from './platform/authentication/auth.js'
 import { createRequestContextResolver } from './platform/authentication/session.js'
 import { PrismaAccessProfileRepository } from './platform/authorization/access-profile.repository.js'
@@ -38,6 +40,8 @@ const appOrigin = process.env.APP_ORIGIN?.trim() ?? 'http://127.0.0.1:4173'
 
 const prisma = createPrismaClient(databaseUrl)
 const customerRepository = new PrismaCustomerRepository(prisma)
+const auditRepository = new PrismaAuditRepository(prisma)
+const customerMutationService = new PrismaCustomerMutationService(prisma)
 const accessProfiles = new PrismaAccessProfileRepository(prisma)
 const auth = createAuth({
   prisma,
@@ -50,6 +54,8 @@ const authorization = createAuthorizationGuards(resolveRequestContext)
 
 const app = buildApp({
   customerRepository,
+  customerMutationService,
+  auditRepository,
   authorization,
   authentication: {
     auth,

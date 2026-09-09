@@ -6,6 +6,7 @@ const roleCapabilities = {
     'customers.create',
     'customers.update',
     'customers.delete',
+    'audit.read',
   ]),
   manager: new Set<Capability>([
     'customers.read',
