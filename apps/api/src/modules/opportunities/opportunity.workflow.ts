@@ -25,7 +25,8 @@ export function normalizeOpportunityTransition(
   targetStage: OpportunityStage,
   lossReason: string | undefined,
 ): { stage: OpportunityStage; lossReason: string | null } {
-  if (!transitions[currentStage].includes(targetStage)) {
+  const allowed = transitions[currentStage] as readonly OpportunityStage[]
+  if (!allowed.includes(targetStage)) {
     throw new OpportunityTransitionError()
   }
 
