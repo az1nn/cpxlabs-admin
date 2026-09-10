@@ -106,7 +106,7 @@
 - [x] T068 Execute graph workflow against the feature branch and fix all error-level drift
 - [x] T069 Verify application CI + Spec Kit CI remain green
 - [x] T070 Run `$speckit-converge` against SC-001..SC-010; append only real uncovered work
-- [ ] T071 Freeze PR after Graph Engineering + existing CI gates are green
+- [x] T071 Freeze PR after Graph Engineering + existing CI gates are green
 - [x] T072 [Convergence] Expose `drift` as a first-class CLI query and execute it explicitly in the Neo4j CI smoke gate after SC-004 revealed the missing executable surface
 
 ## Dependencies
