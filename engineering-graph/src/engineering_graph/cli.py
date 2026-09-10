@@ -158,6 +158,19 @@ def command_conflicts(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_drift(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        rows = store.query_file("drift.cypher", {"repository": settings.repository_id})
+    finally:
+        store.close()
+    if args.json:
+        print(_json(rows))
+    else:
+        _print_rows(rows)
+    return 0
+
+
 def command_context(args: argparse.Namespace) -> int:
     settings, store = _with_store(args)
     budget = ContextBudget(
@@ -266,6 +279,10 @@ def build_parser() -> argparse.ArgumentParser:
     conflicts.add_argument("--spec")
     conflicts.add_argument("--json", action="store_true")
     conflicts.set_defaults(func=command_conflicts)
+
+    drift = subparsers.add_parser("drift", help="Show raw architecture/spec-drift evidence")
+    drift.add_argument("--json", action="store_true")
+    drift.set_defaults(func=command_drift)
 
     context = subparsers.add_parser("context", help="Build bounded task context package")
     context.add_argument("task_id")
