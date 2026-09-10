@@ -6,8 +6,11 @@ from pathlib import Path
 import sys
 from typing import Any, Sequence
 
+from .agent_adapters import SUPPORTED_AGENTS, render_agent_handoff
 from .config import ContextBudget, load_settings
 from .context import build_context, write_context
+from .context_batch import generate_context_packages
+from .context_validation import inspect_freshness, load_context_package
 from .planner import build_execution_plan, load_tasks_from_store
 from .schema import validate_schema_definitions
 from .store import GraphStore
@@ -35,6 +38,14 @@ def _settings(args: argparse.Namespace):
 def _with_store(args: argparse.Namespace):
     settings = _settings(args)
     return settings, GraphStore(settings)
+
+
+def _context_budget(args: argparse.Namespace, settings) -> ContextBudget:
+    return ContextBudget(
+        max_depth=args.depth if getattr(args, "depth", None) is not None else settings.context.max_depth,
+        max_nodes=args.max_nodes if getattr(args, "max_nodes", None) is not None else settings.context.max_nodes,
+        max_bytes=args.max_bytes if getattr(args, "max_bytes", None) is not None else settings.context.max_bytes,
+    )
 
 
 def command_doctor(args: argparse.Namespace) -> int:
@@ -173,10 +184,7 @@ def command_drift(args: argparse.Namespace) -> int:
 
 def command_context(args: argparse.Namespace) -> int:
     settings, store = _with_store(args)
-    budget = ContextBudget(
-        max_depth=args.depth if args.depth is not None else settings.context.max_depth,
-        max_nodes=args.max_nodes if args.max_nodes is not None else settings.context.max_nodes,
-    )
+    budget = _context_budget(args, settings)
     try:
         package = build_context(store, settings, args.task_id, budget)
     finally:
@@ -190,6 +198,70 @@ def command_context(args: argparse.Namespace) -> int:
         print(rendered)
     else:
         print(f"Context package written to {args.output}")
+    return 0
+
+
+def command_context_batch(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    budget = _context_budget(args, settings)
+    try:
+        manifest = generate_context_packages(
+            store,
+            settings,
+            spec_id=args.spec,
+            explicit_task_ids=args.task or (),
+            output_root=Path(args.output_root).resolve() if args.output_root else None,
+            budget=budget,
+        )
+    finally:
+        store.close()
+    payload = manifest.to_dict()
+    if args.json:
+        print(_json(payload))
+    else:
+        print(
+            f"Generated {payload['packageCount']} context package(s) for "
+            f"{payload['repository']} @ {payload['sourceRevision']}"
+        )
+        for item in payload["tasks"]:
+            print(
+                f"{item['taskId']}: {item['directory']} "
+                f"nodes={item['includedNodes']} truncated={item['truncatedNodes']} bytes={item['renderedBytes']}"
+            )
+    return 0
+
+
+def command_context_validate(args: argparse.Namespace) -> int:
+    settings = _settings(args)
+    package = load_context_package(Path(args.package).resolve())
+    report = inspect_freshness(
+        package,
+        settings.repo_root,
+        expected_repository=settings.repository_id,
+        strict=args.strict,
+    )
+    if args.json:
+        print(_json(report.to_dict()))
+    else:
+        print(
+            f"Context package {report.status}: package={report.package_revision} "
+            f"current={report.current_revision or 'unknown'}"
+        )
+        for message in report.messages:
+            print(f"- {message}")
+    return 0 if report.valid else 1
+
+
+def command_context_adapt(args: argparse.Namespace) -> int:
+    package = load_context_package(Path(args.package).resolve())
+    rendered = render_agent_handoff(package, args.agent, Path(args.package).name)
+    if args.output:
+        destination = Path(args.output).resolve()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(rendered, encoding="utf-8")
+        print(f"{args.agent} handoff written to {destination}")
+    else:
+        print(rendered)
     return 0
 
 
@@ -242,6 +314,12 @@ def command_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+def _add_context_budget_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--depth", type=int)
+    parser.add_argument("--max-nodes", type=int)
+    parser.add_argument("--max-bytes", type=int)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="graph-engineering")
     parser.add_argument("--repo-root", help="Repository root (auto-discovered by default)")
@@ -287,10 +365,38 @@ def build_parser() -> argparse.ArgumentParser:
     context = subparsers.add_parser("context", help="Build bounded task context package")
     context.add_argument("task_id")
     context.add_argument("--format", choices=("markdown", "json"), default="markdown")
-    context.add_argument("--depth", type=int)
-    context.add_argument("--max-nodes", type=int)
+    _add_context_budget_arguments(context)
     context.add_argument("--output")
     context.set_defaults(func=command_context)
+
+    context_batch = subparsers.add_parser(
+        "context-batch",
+        help="Generate portable context packages for READY or explicitly selected tasks",
+    )
+    context_batch.add_argument("--spec")
+    context_batch.add_argument("--task", action="append", default=[])
+    context_batch.add_argument("--output-root")
+    _add_context_budget_arguments(context_batch)
+    context_batch.add_argument("--json", action="store_true")
+    context_batch.set_defaults(func=command_context_batch)
+
+    context_validate = subparsers.add_parser(
+        "context-validate",
+        help="Validate context package schema/repository/revision freshness",
+    )
+    context_validate.add_argument("package")
+    context_validate.add_argument("--strict", action="store_true")
+    context_validate.add_argument("--json", action="store_true")
+    context_validate.set_defaults(func=command_context_validate)
+
+    context_adapt = subparsers.add_parser(
+        "context-adapt",
+        help="Render a portable context package for a supported coding agent",
+    )
+    context_adapt.add_argument("package")
+    context_adapt.add_argument("--agent", required=True, choices=SUPPORTED_AGENTS)
+    context_adapt.add_argument("--output")
+    context_adapt.set_defaults(func=command_context_adapt)
 
     waves = subparsers.add_parser("waves", help="Build dependency-safe conflict-free execution waves")
     waves.add_argument("--spec")
