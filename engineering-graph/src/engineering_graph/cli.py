@@ -1,0 +1,307 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+from typing import Any, Sequence
+
+from .config import ContextBudget, load_settings
+from .context import build_context, write_context
+from .planner import build_execution_plan, load_tasks_from_store
+from .schema import validate_schema_definitions
+from .store import GraphStore
+from .sync import synchronize
+from .validator import has_errors, validate_graph
+
+
+def _json(value: Any) -> str:
+    return json.dumps(value, indent=2, sort_keys=True, default=str)
+
+
+def _print_rows(rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        print("No results.")
+        return
+    for row in rows:
+        print(" | ".join(f"{key}={value}" for key, value in row.items()))
+
+
+def _settings(args: argparse.Namespace):
+    repo_root = Path(args.repo_root).resolve() if getattr(args, "repo_root", None) else None
+    return load_settings(repo_root=repo_root)
+
+
+def _with_store(args: argparse.Namespace):
+    settings = _settings(args)
+    return settings, GraphStore(settings)
+
+
+def command_doctor(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        validate_schema_definitions(settings)
+        if args.wait > 0:
+            store.wait_until_ready(args.wait)
+        else:
+            store.verify_connectivity()
+        records = store.run("RETURN 1 AS ok")
+        print(
+            f"Engineering Graph OK: repo={settings.repository_id} "
+            f"neo4j={settings.neo4j.uri} database={settings.neo4j.database} "
+            f"query={records[0]['ok'] if records else 'unknown'}"
+        )
+        return 0
+    finally:
+        store.close()
+
+
+def command_schema(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        store.initialize_schema()
+        print("Engineering Graph schema initialized.")
+        return 0
+    finally:
+        store.close()
+
+
+def command_sync(args: argparse.Namespace) -> int:
+    settings = _settings(args)
+    event = Path(args.github_event).resolve() if args.github_event else None
+    result = synchronize(settings, github_event_path=event)
+    if args.json:
+        print(_json(result.to_dict()))
+    else:
+        print(f"Synced {result.repository} @ {result.source_revision}")
+        print("Nodes:", ", ".join(f"{name}={count}" for name, count in result.node_counts.items()))
+        print(
+            "Relationships:",
+            ", ".join(f"{name}={count}" for name, count in result.relationship_counts.items()),
+        )
+        for warning in result.extraction_warnings:
+            print(f"WARNING {warning['code']}: {warning['message']}", file=sys.stderr)
+    return 0
+
+
+def command_validate(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        results = validate_graph(store, settings)
+    finally:
+        store.close()
+    payload = [result.to_dict() for result in results]
+    if args.json:
+        print(_json(payload))
+    elif not results:
+        print("Graph validation passed with no findings.")
+    else:
+        for result in results:
+            location = f" [{result.source_path}]" if result.source_path else ""
+            print(f"{result.severity.upper()} {result.rule}: {result.entity}{location} — {result.message}")
+        errors = sum(result.severity == "error" for result in results)
+        warnings = sum(result.severity == "warning" for result in results)
+        print(f"Validation findings: errors={errors}, warnings={warnings}")
+    return 1 if has_errors(results) else 0
+
+
+def command_impact(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        rows = store.query_file(
+            "impact.cypher",
+            {
+                "repository": settings.repository_id,
+                "canonicalId": args.canonical_id,
+                "depth": min(max(args.depth, 1), 5),
+                "limit": min(max(args.limit, 1), 500),
+            },
+        )
+    finally:
+        store.close()
+    if args.json:
+        print(_json(rows))
+    else:
+        _print_rows(rows)
+    return 0
+
+
+def command_ready(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        rows = store.query_file(
+            "ready-tasks.cypher",
+            {"repository": settings.repository_id, "specId": args.spec},
+        )
+    finally:
+        store.close()
+    if args.json:
+        print(_json(rows))
+    else:
+        _print_rows(rows)
+    return 0
+
+
+def command_conflicts(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        rows = store.query_file(
+            "conflicts.cypher",
+            {"repository": settings.repository_id, "specId": args.spec},
+        )
+    finally:
+        store.close()
+    if args.json:
+        print(_json(rows))
+    else:
+        _print_rows(rows)
+    return 0
+
+
+def command_context(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    budget = ContextBudget(
+        max_depth=args.depth if args.depth is not None else settings.context.max_depth,
+        max_nodes=args.max_nodes if args.max_nodes is not None else settings.context.max_nodes,
+    )
+    try:
+        package = build_context(store, settings, args.task_id, budget)
+    finally:
+        store.close()
+    rendered = write_context(
+        package,
+        args.format,
+        Path(args.output).resolve() if args.output else None,
+    )
+    if not args.output:
+        print(rendered)
+    else:
+        print(f"Context package written to {args.output}")
+    return 0
+
+
+def command_waves(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        tasks = load_tasks_from_store(store, settings.repository_id, args.spec)
+    finally:
+        store.close()
+    plan = build_execution_plan(tasks)
+    payload = plan.to_dict()
+    if args.json:
+        print(_json(payload))
+    else:
+        print("READY:", ", ".join(plan.ready) or "none")
+        for task, blockers in plan.blocked:
+            print(f"BLOCKED {task}: {', '.join(blockers)}")
+        for cycle in plan.cycles:
+            print(f"CYCLE: {' -> '.join(cycle)}", file=sys.stderr)
+        for conflict in plan.conflicts:
+            print(f"CONFLICT {conflict.left} <> {conflict.right}: {', '.join(conflict.artifacts)}")
+        for index, wave in enumerate(plan.waves, start=1):
+            print(f"WAVE {index}: {', '.join(wave)}")
+    return 1 if plan.cycles else 0
+
+
+def command_stats(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        rows = store.query_file("stats.cypher", {"repository": settings.repository_id})
+    finally:
+        store.close()
+    if args.json:
+        print(_json(rows))
+    else:
+        _print_rows(rows)
+    return 0
+
+
+def command_reset(args: argparse.Namespace) -> int:
+    if not args.yes:
+        print("Refusing reset without --yes", file=sys.stderr)
+        return 2
+    settings, store = _with_store(args)
+    try:
+        store.reset_repository(settings.repository_id)
+    finally:
+        store.close()
+    print(f"Deleted derived graph projection for {settings.repository_id}")
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="graph-engineering")
+    parser.add_argument("--repo-root", help="Repository root (auto-discovered by default)")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    doctor = subparsers.add_parser("doctor", help="Verify schema definitions and Neo4j connectivity")
+    doctor.add_argument("--wait", type=int, default=0, help="Seconds to wait for Neo4j readiness")
+    doctor.set_defaults(func=command_doctor)
+
+    schema = subparsers.add_parser("schema", help="Initialize Neo4j constraints/indexes")
+    schema.set_defaults(func=command_schema)
+
+    sync = subparsers.add_parser("sync", help="Full idempotent repository projection sync")
+    sync.add_argument("--github-event", help="GitHub Actions event JSON path")
+    sync.add_argument("--json", action="store_true")
+    sync.set_defaults(func=command_sync)
+
+    validate = subparsers.add_parser("validate", help="Run graph architecture invariants")
+    validate.add_argument("--json", action="store_true")
+    validate.set_defaults(func=command_validate)
+
+    impact = subparsers.add_parser("impact", help="Traverse bounded impact around an entity")
+    impact.add_argument("canonical_id")
+    impact.add_argument("--depth", type=int, default=3)
+    impact.add_argument("--limit", type=int, default=200)
+    impact.add_argument("--json", action="store_true")
+    impact.set_defaults(func=command_impact)
+
+    ready = subparsers.add_parser("ready", help="List READY/BLOCKED pending tasks")
+    ready.add_argument("--spec")
+    ready.add_argument("--json", action="store_true")
+    ready.set_defaults(func=command_ready)
+
+    conflicts = subparsers.add_parser("conflicts", help="Find pending tasks sharing artifacts")
+    conflicts.add_argument("--spec")
+    conflicts.add_argument("--json", action="store_true")
+    conflicts.set_defaults(func=command_conflicts)
+
+    context = subparsers.add_parser("context", help="Build bounded task context package")
+    context.add_argument("task_id")
+    context.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    context.add_argument("--depth", type=int)
+    context.add_argument("--max-nodes", type=int)
+    context.add_argument("--output")
+    context.set_defaults(func=command_context)
+
+    waves = subparsers.add_parser("waves", help="Build dependency-safe conflict-free execution waves")
+    waves.add_argument("--spec")
+    waves.add_argument("--json", action="store_true")
+    waves.set_defaults(func=command_waves)
+
+    stats = subparsers.add_parser("stats", help="Show projected node/relationship counts")
+    stats.add_argument("--json", action="store_true")
+    stats.set_defaults(func=command_stats)
+
+    reset = subparsers.add_parser("reset", help="Delete this repository's derived projection")
+    reset.add_argument("--yes", action="store_true")
+    reset.set_defaults(func=command_reset)
+
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        return int(args.func(args))
+    except KeyboardInterrupt:
+        return 130
+    except Exception as error:
+        print(f"graph-engineering: {error}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
