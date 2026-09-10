@@ -17,7 +17,15 @@ _TASK_RE = re.compile(r"^\s*-\s+\[(?P<done>[ xX])\]\s+(?P<id>T\d{3})\s*(?P<text>
 _ADR_FILE_RE = re.compile(r"^(?P<number>\d{4})-(?P<slug>.+)\.md$")
 _ADR_REF_RE = re.compile(r"\bADR-(?P<number>\d{4})\b", re.IGNORECASE)
 _SPEC_REF_RE = re.compile(r"\bSPEC-(?P<number>\d{3})-[A-Z0-9-]+\b", re.IGNORECASE)
-_TASK_DEPENDS_RE = re.compile(r"\(\s*depends\s*:\s*(?P<ids>[^)]+)\)", re.IGNORECASE)
+# Accept canonical task dependency markers in either human-friendly form:
+#   (depends: T001,T002)
+#   (`depends: T001,T002`)
+#   `depends: T001,T002`
+# Only explicit T### identifiers become dependency edges; prose/phase order never does.
+_TASK_DEPENDS_RE = re.compile(
+    r"(?:\(\s*)?`?\s*depends\s*:\s*(?P<ids>T\d{3}(?:\s*,\s*T\d{3})*)\s*`?(?:\s*\))?",
+    re.IGNORECASE,
+)
 _TASK_ID_RE = re.compile(r"\bT\d{3}\b", re.IGNORECASE)
 _INLINE_CODE_RE = re.compile(r"`([^`]+)`")
 _PLAIN_PATH_RE = re.compile(
