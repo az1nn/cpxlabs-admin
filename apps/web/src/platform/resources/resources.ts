@@ -1,4 +1,8 @@
 import { customerResource } from '../../features/customers/customer.resource'
+import { opportunityResource } from '../../features/opportunities/opportunity.resource'
 import { ResourceRegistry } from './resource-registry'
 
-export const resourceRegistry = new ResourceRegistry([customerResource])
+export const resourceRegistry = new ResourceRegistry([
+  customerResource,
+  opportunityResource,
+])

@@ -63,29 +63,33 @@
 
 ## Phase 7: User Story 1/2/3/4 — Web Domain Service and UI (007B)
 
-- [ ] T040 [US1] Add domain-specific `OpportunityService` and HTTP implementation; do not modify generic DataProvider with workflow commands
-- [ ] T041 [P] [US1] Add service serialization/error tests including `WORKFLOW_CONFLICT`
-- [ ] T042 [US1] Add opportunity TanStack Query keys/list/detail hooks and bounded URL-controlled list state
-- [ ] T043 [US1] Register Opportunity resource with list/show/create routes and no edit/delete route
-- [ ] T044 [US1] Add opportunity list and detail pages using owned UI primitives with stage/version/value/date presentation
-- [ ] T045 [US2] Add create form with RHF/Zod and capability-aware visibility
-- [ ] T046 [US3] Add workflow action panel deriving valid next actions from state/capability while treating API as authoritative
-- [ ] T047 [US3] Add lost-reason interaction and terminal-state action suppression
-- [ ] T048 [US4] On workflow conflict, refresh authoritative detail/list state and surface a stable stale-state message
-- [ ] T049 [US3] Invalidate opportunity query caches after successful create/transition
-- [ ] T050 [P] Add component/unit tests proving workflow actions are outside DataProvider and Viewer receives no mutation controls
+- [x] T040 [US1] Add domain-specific `OpportunityService` and HTTP implementation; do not modify generic DataProvider with workflow commands
+- [x] T041 [P] [US1] Add service serialization/error tests including `WORKFLOW_CONFLICT`
+- [x] T042 [US1] Add opportunity TanStack Query keys/list/detail hooks and bounded URL-controlled list state
+- [x] T043 [US1] Register Opportunity resource with list/show/create routes and no edit/delete route
+- [x] T044 [US1] Add opportunity list and detail pages using owned UI primitives with stage/version/value/date presentation
+- [x] T045 [US2] Add create form with RHF/Zod and capability-aware visibility
+- [x] T046 [US3] Add workflow action panel deriving valid next actions from state/capability while treating API as authoritative
+- [x] T047 [US3] Add lost-reason interaction and terminal-state action suppression
+- [x] T048 [US4] On workflow conflict, refresh authoritative detail/list state and surface a stable stale-state message
+- [x] T049 [US3] Invalidate opportunity query caches after successful create/transition
+- [x] T050 [P] Add component/unit tests proving workflow actions are outside DataProvider and Viewer receives no mutation controls
 
 ## Phase 8: Browser, Accessibility and Convergence (007B)
 
-- [ ] T051 [P] Add Storybook/axe coverage for Opportunity stage badge, action panel, loss-reason state and conflict message
-- [ ] T052 [P] Add Playwright Viewer read-only Opportunity journey
-- [ ] T053 [P] Add Playwright Manager/Admin create + valid transition + lost/won terminal journey
-- [ ] T054 [P] Add Playwright/API stale-version recovery journey
-- [ ] T055 Add explicit architecture test/assertion that generic DataProvider contains no opportunity transition method
-- [ ] T056 Update developer documentation for extending the reference workflow without turning it into a generic engine
-- [ ] T057 Run/fix frozen install, migrations, strict typecheck, tests, build, Storybook/axe and Playwright
-- [ ] T058 Re-run `$speckit-analyze` against FR-001..FR-025 and constitution
-- [ ] T059 Execute `$speckit-converge` against SC-001..SC-009; append tasks only for real uncovered gaps
+- [x] T051 [P] Add Storybook/axe coverage for Opportunity stage badge, action panel, loss-reason state and conflict message
+- [x] T052 [P] Add Playwright Viewer read-only Opportunity journey
+- [x] T053 [P] Add Playwright Manager/Admin create + valid transition + lost/won terminal journey
+- [x] T054 [P] Add Playwright/API stale-version recovery journey
+- [x] T055 Add explicit architecture test/assertion that generic DataProvider contains no opportunity transition method
+- [x] T056 Update developer documentation for extending the reference workflow without turning it into a generic engine
+- [x] T057 Run/fix frozen install, migrations, strict typecheck, tests, build, Storybook/axe and Playwright
+- [x] T058 Re-run `$speckit-analyze` against FR-001..FR-025 and constitution
+- [x] T059 Execute `$speckit-converge` against SC-001..SC-009; append tasks only for real uncovered gaps
+
+## Phase 9: Convergence Hardening
+
+- [x] T060 [P] [US2] Replace fixed two-decimal frontend money conversion with currency-aware minor-unit parsing from decimal strings using `BigInt`; cover BRL, JPY, KWD, precision rejection and safe-integer bounds
 
 ## Dependencies
 
@@ -104,11 +108,17 @@ Fastify API
       ↓
 Web OpportunityService + UI
       ↓
-Browser/a11y/convergence / new MR
+Browser/a11y/convergence / PR #13
+      ↓
+Currency minor-unit convergence hardening
 ```
 
 Backend workflow and audit correctness are blocking gates before frontend workflow actions are implemented. The frontend can never compensate for a missing server transition rule.
 
+## Convergence
+
+All 60 tasks are complete. Final requirement and success-criterion mapping is recorded in `convergence.md`. T060 was appended during final convergence after identifying an incorrect fixed-two-decimal assumption in the web money boundary.
+
 ## Format Validation
 
-All 59 tasks use Spec Kit checkbox/task identifiers. User-story work is labeled `[US1]`–`[US5]`; independently executable tasks use `[P]` where applicable.
+All 60 tasks use Spec Kit checkbox/task identifiers. User-story work is labeled `[US1]`–`[US5]`; independently executable tasks use `[P]` where applicable.
