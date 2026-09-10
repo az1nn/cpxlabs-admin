@@ -34,10 +34,13 @@ graph-engineering stats --json
 graph-engineering impact ADR-0017 --depth 3 --json
 graph-engineering ready --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
 graph-engineering conflicts --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
+graph-engineering drift --json
 graph-engineering context SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T061 --format markdown
 graph-engineering waves --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
 graph-engineering reset --yes
 ```
+
+The five fundamental inspection surfaces are `impact`, `ready`, `conflicts`, `drift`, and `context`; `waves` builds on the task DAG/artifact overlap for execution planning.
 
 ## V1 graph model
 
@@ -90,9 +93,13 @@ Generated packages should go under `engineering-graph/context-packages/` or `eng
 
 `waves` computes a topological task plan from explicit `DEPENDS_ON` relationships and prevents tasks sharing implementation/test artifacts from occupying the same wave. It never replaces review, CI, branch ownership or worktree discipline.
 
+## Drift versus validation
+
+`drift` exposes raw deterministic invariant evidence from the checked-in Cypher query. `validate` applies the repository's configured severity policy (`error`, `warning`, `off`) plus structural checks such as task dependency cycles. Use `drift` for inspection and `validate` as the CI decision surface.
+
 ## CI
 
-`.github/workflows/engineering-graph.yml` starts an ephemeral Neo4j instance, installs this package, runs unit tests, validates schema definitions, performs two full syncs, executes the validator and smoke-tests the fundamental queries.
+`.github/workflows/engineering-graph.yml` starts an ephemeral Neo4j instance, installs this package, runs unit tests, validates schema definitions, performs two full syncs, executes the validator and smoke-tests impact/ready/conflicts/drift/context plus waves/stats.
 
 Existing application CI and Spec Kit CI remain independent and authoritative for their domains.
 
