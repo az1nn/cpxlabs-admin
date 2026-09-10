@@ -9,133 +9,116 @@
 - [x] T001 Specify tenant isolation, tenant-local authorization, switching, audit ownership, demo behavior and measurable security outcomes
 - [x] T002 [P] Validate specification quality checklist and resolve clarification defaults
 - [x] T003 [P] Research tenant selector validation, cache isolation, shared-table persistence and RLS tradeoffs
-- [x] T004 Define data model, migration invariants and session/tenant transport contracts
+- [x] T004 Define final data model, migration invariants and session/tenant transport contracts
 - [x] T005 Add ADR-0016 for stateless URL selection, server-validated RequestContext and mandatory repository scoping
-- [x] T006 Run `$speckit-analyze` across FR-001..FR-029, SC-001..SC-009 and constitution; freeze design PR after green Spec Kit/CI
+- [x] T006 Run `$speckit-analyze` across FR-001..FR-029, SC-001..SC-009 and constitution; freeze design after green Spec Kit/CI
 
-## Phase 2: Shared Contracts and Persistence Foundation (008A / new PR #15)
+## Phase 2: 008A Additive Tenant Identity Foundation / new PR #15
 
-- [ ] T007 Add Tenant/TenantMembership/session discovery/context DTOs and stable tenant error codes to shared contracts
-- [ ] T008 Add required `TenantScope`/TenantContext application types without exposing Prisma types
-- [ ] T009 Add TenantStatus and MembershipStatus plus Tenant/TenantMembership Prisma models
-- [ ] T010 Add non-null target `tenantId` ownership to Customer and Opportunity models
-- [ ] T011 Change Customer email uniqueness to `(tenantId, email)` and tenant-leading indexes
-- [ ] T012 Add tenant-leading Opportunity indexes preserving workflow query behavior
-- [ ] T013 Make tenant-owned AuditEvent tenant identity mandatory in the target schema and add tenant-leading indexes
-- [ ] T014 Create one migration that backfills a deterministic reference tenant/memberships and existing Customer/Opportunity/Audit rows before NOT NULL constraints
-- [ ] T015 Remove the global AccessProfile role persistence authority after membership backfill while preserving AccessProfile status
-- [ ] T016 [P] Add migration/schema tests for reference backfill, tenant-local customer email uniqueness and required ownership
-- [ ] T017 Update explicit seed data with Alpha/Beta/disabled tenants, multi-role memberships and clearly separated tenant-owned domain fixtures
+- [ ] T007 Add Tenant/TenantMembership/session-context DTOs, TenantScope and stable tenant error codes as additive shared contracts without removing legacy SessionResponse
+- [ ] T008 Add TenantStatus and MembershipStatus plus Tenant/TenantMembership Prisma models only; do not add domain tenant ownership yet
+- [ ] T009 Create additive migration A with deterministic reference Tenant and membership backfill from existing AccessProfile roles while retaining AccessProfile.role compatibility
+- [ ] T010 Update explicit seed data with Alpha, Beta and Disabled tenants plus multi-role user memberships
+- [ ] T011 Add Tenant/TenantMembership repository boundary and Prisma implementation
+- [ ] T012 [P] Add repository tests for active membership discovery, disabled membership, disabled tenant and uniqueness
+- [ ] T013 Implement tenant selector parsing with `TENANT_CONTEXT_REQUIRED`
+- [ ] T014 Implement additive tenant RequestContext resolver that authenticates identity, enforces global AccessProfile status, validates active Tenant/membership, and derives tenant-local Principal
+- [ ] T015 Implement additive `GET /api/session/context` while leaving existing `/api/session` and domain route behavior unchanged in #15
+- [ ] T016 [P] Add Fastify tests for valid, missing, random, disabled and non-member tenant context
+- [ ] T017 [P] Add same-identity Manager-in-Alpha/Viewer-in-Beta context/capability tests
+- [ ] T018 [P] Add membership-revocation, tenant-disable and global AccessProfile-disable next-request tests
+- [ ] T019 Attach only verified tenant id to security/telemetry context and retain secret redaction/request correlation
+- [ ] T020 Add architecture/regression assertion that #15 does not activate tenant-looking domain UX or require tenant headers on legacy domain routes
+- [ ] T021 Run/fix frozen install, migration A/backfill, seed, strict typecheck, unit/API/PostgreSQL tests, build, Storybook/axe and current Playwright
+- [ ] T022 Re-run Spec Kit analysis for additive-foundation coverage and freeze #15; all activation work goes to a new MR
 
-## Phase 3: Session Discovery and Tenant RequestContext (008A)
+## Phase 3: 008B Activation Migration and Final Session Model / new PR #16
 
-- [ ] T018 Add Tenant/TenantMembership repository boundary and Prisma implementation
-- [ ] T019 [P] Add repository tests for active membership discovery, disabled membership and disabled tenant filtering
-- [ ] T020 Refactor global session resolver to authenticate identity + enforce AccessProfile status without deriving one global role
-- [ ] T021 Implement `GET /api/session` identity + active membership discovery contract
-- [ ] T022 Implement required tenant selector parser with `TENANT_CONTEXT_REQUIRED`
-- [ ] T023 Implement tenant RequestContext resolver that revalidates Tenant + membership every request and returns generic `TENANT_ACCESS_DENIED`
-- [ ] T024 Resolve Principal role/capabilities exclusively from the validated TenantMembership
-- [ ] T025 Implement `GET /api/session/context` using the same request-time resolver as protected routes
-- [ ] T026 [P] Add Fastify tests for missing/random/disabled/non-member tenant context and global AccessProfile disablement
-- [ ] T027 [P] Add same-identity Manager-in-Alpha/Viewer-in-Beta authorization tests
-- [ ] T028 [P] Add membership-revocation and tenant-disable-after-login tests proving denial on the next request
-- [ ] T029 Attach only verified tenant id to security/telemetry context while preserving request correlation and secret redaction
+- [ ] T023 Add non-null target `tenantId` ownership fields/relations for Customer, Opportunity and tenant-owned AuditEvent
+- [ ] T024 Replace Customer global email uniqueness with `(tenantId,email)` and tenant-leading Customer indexes
+- [ ] T025 Add tenant-leading Opportunity and Audit indexes preserving workflow/audit query behavior
+- [ ] T026 Create migration B: add nullable ownership, backfill existing rows to reference tenant, apply uniqueness/index changes, then enforce NOT NULL
+- [ ] T027 Change final AccessProfile model to global status only and remove `role` after all authorization code is membership-derived
+- [ ] T028 [P] Add migration-B/schema tests for non-null ownership, reference backfill, tenant-local email uniqueness and removed global role authority
+- [ ] T029 Change `GET /api/session` to final identity + active membership discovery contract in the same MR as the matching web SessionProvider update
+- [ ] T030 Ensure final protected RequestContext requires tenant and has no optional tenant field
+- [ ] T031 [P] Add session discovery tests excluding disabled memberships/tenants and preserving global AccessProfile denial
 
-## Phase 4: Customer Tenant Isolation (008A)
+## Phase 4: 008B Customer Tenant Isolation
 
-- [ ] T030 Make every CustomerRepository method require TenantScope
-- [ ] T031 Update in-memory and Prisma Customer repositories so list/get/create/update/delete use tenant scope at the repository query boundary
-- [ ] T032 Update Customer mutation/audit service so record ownership and AuditEvent tenant id come only from RequestContext
-- [ ] T033 Ensure Customer create/update contracts expose no ownership field and spoofed tenant-shaped inputs cannot set ownership
-- [ ] T034 Map cross-tenant Customer detail/update/delete to ordinary not-found after tenant validation
-- [ ] T035 [P] Add PostgreSQL Customer two-tenant list/detail/create/update/delete isolation tests
-- [ ] T036 [P] Add same-email-across-tenants and duplicate-email-within-tenant tests
-- [ ] T037 [P] Add cross-tenant Customer attack tests proving zero foreign mutation and zero successful foreign audit
+- [ ] T032 Make every CustomerRepository method require TenantScope
+- [ ] T033 Update in-memory and Prisma Customer list/get/create/update/delete queries to use tenant scope in persistence predicates
+- [ ] T034 Update Customer mutation/audit service so record ownership and AuditEvent tenant id derive only from RequestContext
+- [ ] T035 Ensure Customer mutation contracts expose no ownership field and spoofed tenant-shaped body/query data cannot set ownership
+- [ ] T036 Map cross-tenant Customer detail/update/delete to ordinary not-found after selected-tenant validation
+- [ ] T037 [P] Add PostgreSQL Customer two-tenant list/detail/create/update/delete isolation tests
+- [ ] T038 [P] Add same-email-across-tenants and duplicate-email-within-tenant tests
+- [ ] T039 [P] Add cross-tenant Customer attack tests proving zero foreign mutation and zero successful foreign audit
 
-## Phase 5: Opportunity and Audit Tenant Isolation (008A)
+## Phase 5: 008B Opportunity and Audit Tenant Isolation
 
-- [ ] T038 Make every OpportunityRepository method require TenantScope
-- [ ] T039 Scope Prisma Opportunity list/detail predicates by tenant
-- [ ] T040 Update Opportunity workflow create/transition to derive tenant from RequestContext and include tenant in CAS predicate
-- [ ] T041 Preserve Opportunity create/transition + AuditEvent atomicity with the same verified tenant id
-- [ ] T042 Map cross-tenant Opportunity detail/workflow commands to ordinary not-found after tenant validation
-- [ ] T043 [P] Add PostgreSQL two-tenant Opportunity list/detail/create/workflow isolation tests
-- [ ] T044 [P] Add cross-tenant stale/transition attacks proving zero foreign mutation/audit and unchanged version
-- [ ] T045 Make AuditRepository list/read require TenantScope and add tenant predicate to every audit query
-- [ ] T046 Ensure committed Customer/Opportunity domain audit rows have non-null RequestContext tenant id
-- [ ] T047 [P] Add tenant-scoped audit read tests proving Alpha cannot read Beta events and correlation remains intact
-- [ ] T048 Add architecture tests that tenant-owned repository interfaces cannot be called without TenantScope
+- [ ] T040 Make every OpportunityRepository method require TenantScope and scope Prisma list/detail predicates by tenant
+- [ ] T041 Update Opportunity workflow create/transition to derive tenant from RequestContext and include tenant in compare-and-swap predicate
+- [ ] T042 Preserve Opportunity create/transition + AuditEvent atomicity with the same verified tenant id
+- [ ] T043 Map cross-tenant Opportunity detail/workflow commands to ordinary not-found
+- [ ] T044 [P] Add PostgreSQL two-tenant Opportunity list/detail/create/workflow isolation tests
+- [ ] T045 [P] Add cross-tenant stale/transition attacks proving zero foreign mutation/audit and unchanged version
+- [ ] T046 Make AuditRepository append/list tenant-scoped for tenant-owned domain evidence and add tenant predicates to reads
+- [ ] T047 Ensure committed Customer/Opportunity domain audit rows have non-null RequestContext tenant id
+- [ ] T048 [P] Add tenant-scoped audit read tests proving Alpha cannot read Beta events and correlation remains intact
+- [ ] T049 Add architecture tests that tenant-owned repository interfaces cannot be invoked without TenantScope
 
-## Phase 6: 008A Backend Gate / new PR #15
+## Phase 6: 008B Web Session, Routing, Transport and Cache Isolation
 
-- [ ] T049 Run/fix frozen install, migration/backfill, seed, strict typecheck, unit/API/PostgreSQL tests, build and existing browser regression
-- [ ] T050 Re-run Spec Kit analysis for backend coverage of FR-001..FR-018 and FR-025..FR-029
-- [ ] T051 Freeze backend PR after all isolation/security gates are green; do not add web tenancy code to that MR
+- [ ] T050 Refactor web SessionProvider to final identity + active membership discovery rather than one global Principal
+- [ ] T051 Add tenant session-context client for `/api/session/context`
+- [ ] T052 Add `/tenants` selection/no-membership experience and deterministic post-sign-in routing
+- [ ] T053 Move tenant-owned Customer and Opportunity routes under `/t/$tenantSlug/...`
+- [ ] T054 Resolve route slug only against discovered active memberships before rendering protected tenant pages
+- [ ] T055 Supply tenant-local Principal to AuthorizationProvider from scoped session context
+- [ ] T056 Create one tenant-bound HTTP transport/fetch that injects canonical `X-Tenant-Id`
+- [ ] T057 Bind HttpDataProvider and HttpOpportunityService through the tenant transport; feature components never set tenant headers
+- [ ] T058 Include canonical tenant id in every Customer list/detail query key
+- [ ] T059 Include canonical tenant id in every Opportunity list/detail query key
+- [ ] T060 Ensure tenant switching naturally segregates cached data and add no-stale-row cache tests
+- [ ] T061 Update Resource Registry/navigation URL generation to preserve tenant slug without embedding authorization in resource definitions
+- [ ] T062 Add visible current-tenant identity and deterministic membership switcher to shell
+- [ ] T063 Handle invalid/revoked/disabled tenant routes without rendering protected Customer/Opportunity/Audit/workflow state
 
-## Phase 7: Web Session, Routing and Tenant Transport (008B / new PR #16)
+## Phase 7: 008B Demo, Browser and Accessibility
 
-- [ ] T052 Refactor web SessionProvider to identity + active membership discovery rather than one global Principal
-- [ ] T053 Add tenant session-context client for `/api/session/context`
-- [ ] T054 Add `/tenants` selection/no-membership experience and deterministic post-sign-in routing
-- [ ] T055 Move tenant-owned Customer and Opportunity routes under `/t/$tenantSlug/...`
-- [ ] T056 Resolve route slug only against discovered active memberships before rendering protected tenant pages
-- [ ] T057 Supply tenant-local Principal to AuthorizationProvider from scoped session context
-- [ ] T058 Create one tenant-bound HTTP transport/fetch that injects canonical `X-Tenant-Id`
-- [ ] T059 Bind HttpDataProvider and HttpOpportunityService through the tenant transport; feature components must not set tenant headers
-- [ ] T060 Include canonical tenant id in Customer list/detail TanStack Query keys
-- [ ] T061 Include canonical tenant id in Opportunity list/detail TanStack Query keys
-- [ ] T062 Ensure tenant switching cannot reuse unscoped prior-tenant Query data and add cache-isolation tests
-- [ ] T063 Update Resource Registry/navigation URL generation to preserve explicit tenant slug without embedding tenant authority in resource definitions
-- [ ] T064 Add visible current-tenant identity and deterministic membership switcher to the application shell
-- [ ] T065 Handle invalid/revoked/disabled tenant route without rendering protected domain content
+- [ ] T064 Model deterministic Alpha/Beta memberships and isolated Customer/Opportunity datasets in demo services
+- [ ] T065 [P] Add demo tenant switch/isolation unit tests
+- [ ] T066 Update all existing authenticated Customer/Opportunity Playwright journeys to tenant-prefixed routes
+- [ ] T067 [P] Add browser journey proving one identity is Manager in Alpha and Viewer in Beta with corresponding controls/API outcomes
+- [ ] T068 [P] Add browser tenant-switch journey proving URL, visible tenant, capabilities and datasets switch without prior-tenant rows
+- [ ] T069 [P] Add HTTP E2E cross-tenant id probing/mutation checks against PostgreSQL
+- [ ] T070 [P] Add browser membership-revocation/tenant-disable next-request denial journey
+- [ ] T071 [P] Add Storybook/axe coverage for tenant selector/switcher, zero-membership and access-denied states
+- [ ] T072 Add web architecture tests proving tenant id is in tenant-owned query keys and tenant header injection exists only in the owned transport
+- [ ] T073 Update local/deployment docs with migration/seed, URL/header selector boundary and no-client-authority rule
 
-## Phase 8: Demo, Browser and Accessibility (008B)
+## Phase 8: 008B Gate and Convergence
 
-- [ ] T066 Model deterministic Alpha/Beta memberships and isolated Customer/Opportunity datasets in demo auth/data services
-- [ ] T067 [P] Add demo tenant switch/isolation unit tests
-- [ ] T068 Update existing authenticated Customer/Opportunity Playwright journeys to tenant-prefixed routes
-- [ ] T069 [P] Add browser journey proving one identity is Manager in Alpha and Viewer in Beta with matching controls/API outcomes
-- [ ] T070 [P] Add browser tenant-switch journey proving URL, visible tenant, capability controls and datasets switch without stale rows
-- [ ] T071 [P] Add HTTP E2E cross-tenant id probing/mutation checks against PostgreSQL
-- [ ] T072 [P] Add browser membership-revocation/tenant-disable next-request denial journey
-- [ ] T073 [P] Add Storybook/axe coverage for tenant selector/switcher, zero-membership and tenant-access-denied states
-- [ ] T074 Add web architecture tests proving tenant id is present in tenant-owned query keys and injected only through owned transport
-- [ ] T075 Update local/deployment docs with tenant seed, URL/header boundary and no-client-authority rule
-
-## Phase 9: 008B Gate and Convergence
-
-- [ ] T076 Run/fix frozen install, migrations/seed, strict typecheck, tests, build, Storybook/axe and full Playwright
-- [ ] T077 Re-run `$speckit-analyze` across FR-001..FR-029 and constitution after web integration
-- [ ] T078 Execute `$speckit-converge` against SC-001..SC-009 and append tasks only for real uncovered isolation gaps
-- [ ] T079 If convergence is clean, freeze 008B PR; if material security/migration gaps remain, create a **new** 008C branch/MR rather than reusing prior MRs
+- [ ] T074 Run/fix frozen install, migrations A+B, seed, strict typecheck, tests, build, Storybook/axe and full Playwright
+- [ ] T075 Re-run `$speckit-analyze` across FR-001..FR-029 and constitution after activation
+- [ ] T076 Execute `$speckit-converge` against SC-001..SC-009 and append tasks only for real uncovered isolation gaps
+- [ ] T077 If convergence is clean, freeze #16; if material security/migration gaps remain, create a **new** 008C branch/MR rather than reusing prior MRs
 
 ## Dependencies
 
 ```text
-008 design / PR #14
+008 design / #14
       ↓
-shared contracts + migration
+008A additive Tenant/Membership/Context foundation / new #15
       ↓
-session discovery + RequestContext
+008B migration B + server isolation + web activation / new #16
       ↓
-Customer isolation
-      ↓
-Opportunity + Audit isolation
-      ↓
-008A backend gate / new PR #15
-      ↓
-web tenant routes + transport + cache isolation
-      ↓
-demo/browser/a11y
-      ↓
-008B gate / new PR #16
-      ↓
-optional 008C only if convergence discovers material gaps
+optional 008C only for material convergence gaps / new #17
 ```
 
-The security boundary is server/repository-side. Frontend tenant visibility, URL routing, and cache isolation are required correctness/UX defenses but never substitute for request-time membership validation.
+The additive #15 deliberately does not expose tenant-scoped domain UX or change existing domain request requirements. The security boundary becomes active atomically with the matching web client in #16, avoiding both permissive feature flags and independently broken merges.
 
 ## Format Validation
 
-All 79 tasks use Spec Kit checkbox/task identifiers. Independently executable tasks use `[P]` where applicable. PR/MR slice boundaries are explicit to preserve the project rule that each stage receives a new MR.
+All 77 tasks use Spec Kit checkbox/task identifiers. Independently executable tasks use `[P]` where applicable. MR boundaries explicitly preserve the project rule that each stage receives a new MR.
