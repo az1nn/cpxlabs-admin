@@ -4,9 +4,18 @@
 
 **Created**: 2026-09-10
 
-**Status**: Draft
+**Status**: Ready for Implementation
 
 **Input**: Add a reference multi-tenant architecture that makes tenant membership, tenant-scoped authorization, repository isolation, audit ownership, session discovery, and frontend tenant selection explicit without coupling tenancy to Better Auth or relying on UI filtering for security.
+
+## Clarifications
+
+- Tenant selection is explicit in browser URLs as `/t/:tenantSlug/...`; no hidden active-tenant session/cookie state is introduced.
+- Tenant-scoped API calls use `X-Tenant-Id` only as a selector; the server validates active Tenant + active TenantMembership on every request.
+- `GET /api/session` becomes global identity/membership discovery; `GET /api/session/context` resolves the selected tenant into a server-derived Principal.
+- Global AccessProfile remains the application active/disabled gate; tenant-local role/capabilities come only from TenantMembership.
+- Shared-table PostgreSQL with mandatory tenant ownership and mandatory repository scope is the reference isolation model. PostgreSQL RLS is deferred as additive defense in depth.
+- Unauthorized/disabled/nonexistent tenant selection returns one generic tenant-access denial; cross-tenant resource ids within an otherwise valid tenant context return normal not-found.
 
 ## User Scenarios & Testing *(mandatory)*
 
