@@ -5,9 +5,9 @@
 
 ## Summary
 
-Introduce shared-table multi-tenancy as a first-class security boundary. The implementation adds Tenant and TenantMembership persistence, moves role authority from global AccessProfile to tenant-local membership, requires server-validated tenant RequestContext for Customer/Opportunity/Audit paths, scopes repositories and audit by tenant, exposes session membership discovery, and makes tenant selection explicit in web URLs and TanStack Query cache keys.
+Introduce shared-table multi-tenancy as a first-class security boundary. The final architecture adds Tenant and TenantMembership persistence, moves role authority from global AccessProfile to tenant-local membership, requires server-validated tenant RequestContext for Customer/Opportunity/Audit paths, scopes repositories and audit by tenant, exposes session membership discovery, and makes tenant selection explicit in web URLs and TanStack Query cache keys.
 
-The design deliberately keeps tenant selection stateless: `/t/:tenantSlug/...` is visible navigation state; a tenant-bound HTTP transport sends `X-Tenant-Id`; the API treats that header only as a selector and revalidates tenant + membership on every request.
+Tenant selection is stateless: `/t/:tenantSlug/...` is visible navigation state; a tenant-bound HTTP transport sends `X-Tenant-Id`; the API treats that header only as a selector and revalidates tenant + membership on every protected request.
 
 ## Technical Context
 
@@ -15,7 +15,7 @@ The design deliberately keeps tenant selection stateless: `/t/:tenantSlug/...` i
 - **Backend**: Fastify 5 modular monolith.
 - **Persistence**: PostgreSQL 17 + Prisma 7.10.0 behind repositories.
 - **Authentication**: Better Auth identity/session only.
-- **Authorization**: project-owned Principal/capability policy; membership role is tenant-local authority.
+- **Authorization**: project-owned Principal/capability policy; membership role is the final tenant-local authority.
 - **Audit**: durable append-only PostgreSQL audit from feature 006.
 - **Workflow**: explicit Opportunity commands from feature 007.
 - **Testing**: Vitest, Fastify inject, PostgreSQL integration, Storybook/axe, Playwright.
@@ -24,22 +24,13 @@ No unresolved `NEEDS CLARIFICATION` items remain.
 
 ## Constitution Check — Pre-design
 
-### I. Spec before implementation
-PASS. PR #14 is design-only and freezes specify/clarify/plan/tasks/analyze before production code begins.
+- **Spec before implementation**: PASS. PR #14 is design-only.
+- **Backend-agnostic frontend**: PASS. Browser consumes shared tenant/session contracts and owned transport.
+- **Server-authoritative authorization**: PASS. Tenant selector is never authority; membership is request-time validated.
+- **Strict types/tests/CI**: PASS. Tenant becomes required at protected repository/query boundaries and two-tenant PostgreSQL tests are blocking gates.
+- **Simplicity/evolvability**: PASS. No tenancy framework, hidden active-tenant session state, extra service, queue, or cache is introduced.
 
-### II. Backend-agnostic frontend
-PASS. The browser consumes shared tenant/session contracts and an owned tenant transport. Prisma/Fastify membership internals do not cross the boundary.
-
-### III. Server authority and typed authorization
-PASS. Tenant selection is client-visible but never authoritative. Membership, role and capabilities are server-derived on every tenant-scoped RequestContext resolution.
-
-### IV. Strict types/tests/CI
-PASS. Tenant scope becomes a required type at repository and query-key boundaries. PostgreSQL cross-tenant tests are mandatory.
-
-### V. Simplicity/evolvability
-PASS. Shared-table ownership + explicit repository scoping is preferred over introducing a new tenancy framework, service, workflow, or hidden active-tenant session state.
-
-## Request Architecture
+## Final Request Architecture
 
 ```text
 Browser URL /t/:tenantSlug/...
@@ -67,56 +58,99 @@ tenant-scoped repository / mutation service
 PostgreSQL tenant_id predicates + constraints
 ```
 
-The raw header is never passed down as trusted context; downstream code receives the validated RequestContext/TenantScope value.
+The raw header is never passed downstream as trusted context; repositories receive validated RequestContext/TenantScope.
 
-## Session Model
+## Merge-Safe Rollout Strategy
+
+The final tenant boundary changes both server contracts and browser routing. Landing a server-only breaking change would make the existing web client fail every Customer/Opportunity request; landing tenant-looking routes before server isolation would be worse because the UI could imply security that does not exist.
+
+We therefore use two merge-safe implementation slices rather than a feature flag or permissive fallback.
+
+### 008A — additive foundation (#15)
+
+008A may be merged without changing existing domain behavior:
+
+- add shared **new** tenant DTO/value types without removing legacy SessionResponse yet;
+- add Tenant/TenantMembership persistence and backfill memberships from current AccessProfile roles;
+- keep AccessProfile.role temporarily only as backward-compatibility authority for the existing unscoped application path;
+- add TenantMembership repository and request-time tenant resolver;
+- add `/api/session/context` as an additive endpoint;
+- test tenant/membership/revocation semantics independently;
+- do **not** add required tenant ownership to Customer/Opportunity/Audit yet;
+- do **not** require `X-Tenant-Id` on existing domain routes yet;
+- do **not** change browser routes in #15.
+
+This is a deliberate migration bridge, not the final authorization model. No new tenant-looking domain UX is exposed in this phase.
+
+### 008B — atomic activation vertical slice (#16)
+
+008B switches the product to the final model in one green MR:
+
+- change `/api/session` to identity + membership discovery;
+- remove AccessProfile.role authority/column;
+- migrate/backfill mandatory tenant ownership on Customer/Opportunity/Audit;
+- make repository TenantScope required and activate domain enforcement;
+- derive all mutation/audit ownership from RequestContext;
+- add tenant-prefixed browser routes, tenant-bound transport, tenant query keys, scoped Principal, visible switcher and demo isolation;
+- update all existing browser journeys to tenant-aware URLs/transport;
+- run the full two-tenant PostgreSQL + browser security matrix.
+
+There is no interval after #16 merge where the UI shows tenant boundaries while the API remains global, or where the API requires tenant context the shipped web cannot provide.
+
+### 008C — convergence only if needed (#17)
+
+Create a third implementation MR only if post-activation analyze/converge finds a material security/migration/accessibility gap. Do not create an empty process-only MR.
+
+## Session Model — Final State
 
 ### Global discovery
 
-`GET /api/session`:
-
-- authenticates the existing Better Auth session;
-- enforces global AccessProfile active status;
-- returns identity + active TenantMembership summaries;
-- does not manufacture one global Principal role.
+`GET /api/session` authenticates Better Auth, enforces global AccessProfile active status, and returns identity + active TenantMembership summaries. It no longer manufactures a global role.
 
 ### Tenant context
 
-`GET /api/session/context` + `X-Tenant-Id`:
+`GET /api/session/context` + `X-Tenant-Id` revalidates Tenant/TenantMembership and returns Tenant + tenant-local Principal. Protected domain routes use the same resolver directly.
 
-- revalidates Tenant and TenantMembership;
-- returns the selected Tenant plus tenant-local Principal;
-- uses stable `TENANT_CONTEXT_REQUIRED` / `TENANT_ACCESS_DENIED` errors.
+During additive #15, the existing `/api/session` response remains unchanged solely to keep current master behavior green; `/api/session/context` is already available and tested. #16 removes that compatibility state.
 
-Protected tenant-owned routes use the same resolver directly and do not trust a previously fetched context response.
+## Persistence — Final State
 
-## Persistence Migration
+Final target:
 
-One committed migration must preserve existing reference data safely:
+1. Tenant/TenantMembership exist and membership role is authoritative;
+2. Customer/Opportunity/AuditEvent have non-null tenant ownership;
+3. Customer uniqueness is `(tenantId,email)`;
+4. tenant-leading indexes support scoped queries;
+5. AccessProfile contains global status only.
 
-1. add TenantStatus and MembershipStatus enums;
-2. create Tenant and TenantMembership;
-3. insert deterministic legacy/reference tenant;
-4. backfill one membership per current AccessProfile using its existing role;
-5. add nullable tenantId to Customer, Opportunity, AuditEvent;
-6. backfill existing rows to reference tenant;
-7. replace Customer global email unique with `(tenantId,email)` unique;
-8. replace useful Customer/Opportunity indexes with tenant-leading indexes;
-9. make tenant ownership non-null;
-10. update application code to read role from membership only;
-11. remove global AccessProfile role column so there is no second role authority.
+### Migration A (#15)
 
-The migration is schema/data migration only. Demo/reference fixtures beyond required backfill remain in explicit seed code.
+- create TenantStatus/MembershipStatus;
+- create Tenant/TenantMembership;
+- insert deterministic reference tenant;
+- backfill one membership per existing AccessProfile using existing role;
+- retain AccessProfile.role temporarily;
+- add deterministic Alpha/Beta/disabled reference fixtures through explicit seed.
 
-## Repository Boundary
+### Migration B (#16)
 
-Introduce a stable required value:
+- add nullable tenant ids to Customer/Opportunity/AuditEvent;
+- backfill legacy rows to the reference tenant;
+- change Customer unique index to `(tenantId,email)`;
+- add tenant-leading Customer/Opportunity/Audit indexes;
+- make tenant ownership non-null;
+- update code to membership-only role authority;
+- drop AccessProfile.role.
+
+This two-migration rollout is intentional because each merged commit remains executable with its matching web client.
+
+## Repository Boundary — Final State
 
 ```ts
 type TenantScope = { tenantId: string }
 ```
 
-Every tenant-owned repository method requires it. Examples:
+Every tenant-owned repository method requires it:
 
 ```ts
 customerRepository.list(scope, params)
@@ -127,29 +161,17 @@ opportunityWorkflow.transition(context, id, input)
 auditRepository.list(scope, filters)
 ```
 
-Prisma `get/update/delete` paths include tenant id in the database predicate, not a post-fetch ownership check.
+Prisma detail/update/delete/CAS predicates include tenant id rather than loading globally and checking afterwards.
 
-This is the primary reference isolation boundary. PostgreSQL RLS is explicitly deferred as future defense in depth; it must not be used to justify unscoped application repository APIs.
+This is the primary reference isolation boundary. PostgreSQL RLS is deferred as future defense in depth and may never justify unscoped repository APIs.
 
-## Domain Mutation and Audit
+## Domain Mutation and Audit — Final State
 
-Customer and Opportunity mutation services receive full RequestContext. The validated `context.tenant.id` supplies both domain ownership and AuditEvent tenant id inside the same Prisma transaction.
+Customer and Opportunity mutation services receive RequestContext. `context.tenant.id` supplies both domain ownership and AuditEvent tenant id inside one transaction. Client ownership fields are not admitted.
 
-For create:
+Cross-tenant ids resolve as normal not-found because current tenant id is part of the persistence predicate.
 
-```text
-RequestContext tenant
-   ├── record.tenantId
-   └── audit.tenantId
-```
-
-No caller-provided ownership field is admitted to Customer/Opportunity create input contracts.
-
-Cross-tenant ids resolve as not-found because repository/mutation predicates include current tenant id.
-
-## Authorization Model
-
-Current role-capability matrix stays unchanged, but role source changes:
+## Authorization Model — Final State
 
 ```text
 Global AccessProfile.status
@@ -161,24 +183,14 @@ capabilitiesForRole(role)
 Principal
 ```
 
-The same User may therefore be:
+The same User can be Manager in Alpha and Viewer in Beta without multiple Better Auth identities or sessions. No global super-admin bypass is introduced.
 
-```text
-Alpha → manager
-Beta  → viewer
-```
-
-without multiple Better Auth accounts or sessions.
-
-No global super-admin bypass is introduced.
-
-## Frontend Architecture
+## Frontend Architecture — Final State
 
 ### Routing
 
-Tenant-owned pages move under:
-
 ```text
+/tenants
 /t/$tenantSlug/customers
 /t/$tenantSlug/customers/new
 /t/$tenantSlug/customers/$customerId
@@ -188,135 +200,74 @@ Tenant-owned pages move under:
 /t/$tenantSlug/opportunities/$opportunityId
 ```
 
-`/tenants` is the deterministic selection surface for users with multiple memberships or no selected tenant. After sign-in:
-
-- one active membership → redirect to its tenant home/resource route;
-- multiple memberships → `/tenants`;
-- zero memberships → `/tenants` with no-access state.
-
-Legacy unscoped domain routes must not silently pick a hidden tenant; they redirect to tenant selection or an explicit sole membership only when deterministic.
+After sign-in: one active membership may redirect deterministically to it; multiple/zero memberships use `/tenants`. Legacy unscoped domain URLs must not silently choose a hidden tenant.
 
 ### Tenant transport
 
-Create one project-owned tenant-bound fetch/transport factory. It adds `X-Tenant-Id` to tenant-owned HTTP calls and is injected into:
-
-- HttpDataProvider;
-- HttpOpportunityService;
-- tenant-scoped session context client;
-- future tenant-owned services.
-
-Feature components never set tenant headers directly.
+One project-owned tenant-bound fetch adds `X-Tenant-Id` and is injected into HttpDataProvider, HttpOpportunityService, scoped session context, and future tenant-owned clients. Feature components never set the header.
 
 ### Cache isolation
 
-Customer and Opportunity query keys include canonical tenant id. Tenant switch changes query namespaces before the new route renders. A defensive clear/invalidate of tenant-owned queries may supplement this, but correctness cannot depend solely on imperative invalidation.
+Customer/Opportunity query keys include canonical tenant id. Correctness depends on namespaced keys; imperative invalidation is only defense in depth.
 
 ### Authorization provider
 
-The global SessionProvider owns identity + membership discovery. A tenant route boundary resolves `/api/session/context` and supplies the returned tenant-local Principal to AuthorizationProvider. No role is inferred from the discovery payload alone for protected operations.
+Global SessionProvider owns identity/membership discovery. The tenant route boundary resolves `/api/session/context` and provides the returned tenant-local Principal to AuthorizationProvider.
 
 ### Shell
 
-The shell visibly displays current tenant and provides a switcher over active memberships. Switching navigates to the corresponding `/t/:slug/...` route rather than mutating hidden session state.
+The current tenant is always visible. Switching navigates to another `/t/:slug/...` URL; it does not mutate hidden server session state.
 
 ## Demo Mode
 
-Demo auth/session exposes deterministic Tenant Alpha and Tenant Beta memberships. Demo Customer and Opportunity services partition rows by canonical tenant id and use the same tenant-aware query-key/transport-facing interfaces where practical.
-
-Demo isolation is for product usability/testing. It is never treated as proof of server security; HTTP E2E remains the security gate.
+Demo auth/data models deterministic Alpha/Beta memberships and datasets. Demo isolation exercises UX/contracts, but real HTTP/PostgreSQL E2E remains the security proof.
 
 ## Testing Strategy
 
-### Contracts/unit
+### 008A additive foundation
 
-- membership→Principal role/capability mapping;
-- tenant route parsing/membership matching;
-- tenant-bound fetch header injection;
-- tenant included in all resource query keys;
-- demo datasets isolated;
-- missing/invalid selector error mapping.
+- migration/backfill of Tenant/TenantMembership;
+- active discovery filtering in repository;
+- context resolution for valid/invalid/disabled/non-member tenants;
+- same identity different membership roles;
+- membership/tenant revocation reflected on next context request;
+- global AccessProfile disablement still blocks context;
+- existing unscoped web/browser behavior remains green because activation has not occurred.
 
-### API/Fastify
+### 008B activation
 
-- missing tenant context;
-- invalid/disabled/non-member tenant generic denial;
-- same user manager in Alpha/viewer in Beta;
-- global disabled AccessProfile blocks both;
-- membership disabled blocks only its tenant;
-- session discovery excludes inactive membership/tenant;
-- context route revalidates membership each request.
-
-### PostgreSQL isolation
-
-For Customer and Opportunity:
-
-- list only current tenant;
-- same id probing in foreign tenant resolves not-found;
-- create ownership server-derived;
-- update/delete/workflow cannot cross tenant;
-- same customer email allowed across tenants, rejected within tenant;
-- Opportunity CAS remains tenant-scoped;
-- failed cross-tenant operations append zero audit;
-- committed audit tenant id correct/non-null;
-- audit list cannot cross tenant.
-
-### Browser
-
-- sign-in → tenant selection;
-- current tenant visibly shown;
-- switch changes URL, role controls and datasets;
-- query cache never displays prior-tenant records;
-- Manager in Alpha can mutate; same identity Viewer in Beta cannot;
-- revoked membership/disabled tenant fails on next request;
-- existing auth/customer/opportunity journeys updated to tenant URLs.
+- every Customer/Opportunity repository operation tenant-scoped;
+- cross-tenant id read/update/delete/workflow returns not-found and never mutates;
+- same customer email allowed across tenants, rejected within one tenant;
+- Opportunity CAS contains tenant scope;
+- domain/audit tenant ids identical and atomic;
+- audit reads tenant-scoped;
+- session discovery final contract;
+- tenant-bound transport and query-key architecture tests;
+- browser switch changes URL/data/capabilities without stale cache;
+- membership/tenant revocation blocks next tenant-owned request;
+- full auth/customer/opportunity/audit/telemetry regression.
 
 ## Delivery Slices / MR Policy
 
-### PR #14 — 008 Design only
+### PR #14 — Design only
+Spec/checklist/research/data model/contracts/plan/tasks/analyze/ADR-0016. No production code.
 
-- spec/checklist;
-- research;
-- data model;
-- session/transport contract;
-- plan;
-- tasks;
-- analysis;
-- ADR-0016.
+### New PR #15 — 008A additive tenant identity foundation
+Tenant/TenantMembership persistence/backfill, membership repository, additive tenant context endpoint/resolver, tests, existing regression green. No domain tenancy activation.
 
-No production code.
+### New PR #16 — 008B tenant isolation activation
+Mandatory domain ownership + repository scoping + membership-only role authority + final session discovery + web tenant routes/transport/query keys/switcher/demo + full isolation E2E.
 
-### New PR #15 — 008A Backend isolation
-
-- shared contracts;
-- Prisma migration/backfill;
-- Tenant/TenantMembership repositories;
-- session discovery/context resolver;
-- RequestContext required tenant;
-- Customer/Opportunity/Audit repository scoping;
-- mutation/audit atomic tenant ownership;
-- PostgreSQL/API isolation gates.
-
-### New PR #16 — 008B Web tenancy
-
-- tenant discovery/session provider changes;
-- tenant route tree;
-- tenant-bound transport;
-- tenant-aware DataProvider/OpportunityService wiring;
-- query-key isolation;
-- tenant selector/shell;
-- demo tenant behavior;
-- browser/a11y gates.
-
-### Optional new PR #17 — 008C convergence
-
-Only create if analyze/converge after 008B discovers material uncovered security or migration work. Do not create an empty process-only PR.
+### Optional new PR #17 — 008C convergence hardening
+Only when final convergence discovers material uncovered work.
 
 ## Complexity Tracking
 
-No constitution exception is requested. Explicit repository scoping duplicates a small `TenantScope` parameter across repositories by design; this duplication is preferable to hidden global context or an early bespoke tenancy framework.
+No constitution exception is requested. The temporary AccessProfile.role compatibility column exists only across the #15→#16 migration boundary and is never introduced as a second *new* role source. #15 does not expose tenant-scoped domain UX, and #16 removes the compatibility state atomically with activation.
 
-RLS is deferred deliberately. If later introduced, it must be additive defense in depth with transaction-local tenant context, a non-bypass request role, pooling tests, and schema-derived RLS coverage gates.
+RLS is deferred deliberately. If introduced later it must use transaction-local context, a non-bypass request role, pooling/reuse tests, and schema-derived RLS coverage while retaining application TenantScope.
 
 ## Constitution Check — Post-design
 
-PASS. The plan makes tenant authority server-derived, scopes data at repository/database predicates, keeps browser state explicit in Router/Query, retains Better Auth and Prisma behind owned boundaries, adds no new infrastructure service, and strengthens rather than weakens existing auth/audit/CI guarantees.
+PASS. The final design makes tenant authority server-derived and repository-scoped, while the revised rollout ensures every independently merged MR remains executable and does not require a temporary authorization bypass or misleading tenant UI.
