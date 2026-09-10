@@ -67,6 +67,11 @@ def build_context(
     budget: ContextBudget | None = None,
 ) -> ContextPackage:
     effective = budget or settings.context
+    if effective.max_depth < 1 or effective.max_depth > 5:
+        raise ValueError("Context max_depth must be between 1 and 5")
+    if effective.max_nodes < 1 or effective.max_nodes > 500:
+        raise ValueError("Context max_nodes must be between 1 and 500")
+
     rows = store.query_file(
         "agent-context.cypher",
         {"repository": settings.repository_id, "taskId": task_id},
@@ -77,10 +82,20 @@ def build_context(
     task = row.get("task")
     if not isinstance(task, dict):
         raise LookupError(f"Task not found in engineering graph: {task_id}")
-    spec = row.get("spec") if isinstance(row.get("spec"), dict) else None
 
-    # Task and parent Spec consume the first slots. Related collections then consume
-    # a deterministic shared node budget so context size cannot grow unbounded.
+    # Direct task relations are depth 1. Requirement/ADR evidence reached through
+    # the parent Spec is depth 2. The query intentionally contains no deeper
+    # unbounded traversal; max_depth still controls which classes are admitted.
+    spec = row.get("spec") if effective.max_depth >= 1 and isinstance(row.get("spec"), dict) else None
+    group_depths = {
+        "dependencies": 1,
+        "code": 1,
+        "tests": 1,
+        "pullRequests": 1,
+        "requirements": 2,
+        "adrs": 2,
+    }
+
     remaining = max(effective.max_nodes - 1 - (1 if spec else 0), 0)
     truncated = False
     groups: list[tuple[str, list[dict[str, Any]]]] = [
@@ -93,6 +108,10 @@ def build_context(
     ]
     selected: dict[str, tuple[dict[str, Any], ...]] = {}
     for name, values in groups:
+        if group_depths[name] > effective.max_depth:
+            selected[name] = ()
+            truncated = truncated or bool(values)
+            continue
         chunk, remaining, group_truncated = _take(values, remaining)
         selected[name] = chunk
         truncated = truncated or group_truncated
