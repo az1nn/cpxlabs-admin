@@ -13,7 +13,7 @@ export function currencyFractionDigits(currency: string): number {
     return new Intl.NumberFormat('en', {
       style: 'currency',
       currency: normalized,
-    }).resolvedOptions().maximumFractionDigits
+    }).resolvedOptions().maximumFractionDigits ?? DEFAULT_FRACTION_DIGITS
   } catch {
     // The reference API intentionally accepts ISO-style three-letter codes without
     // maintaining its own currency catalogue. Unknown codes therefore retain the
