@@ -98,6 +98,7 @@ jobs:
           graph-engineering impact ADR-0017 --depth 3 --limit 100 --json
           graph-engineering ready --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
           graph-engineering conflicts --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
+          graph-engineering drift --json
           graph-engineering context SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T061 --format json
           graph-engineering waves --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
           graph-engineering stats --json
