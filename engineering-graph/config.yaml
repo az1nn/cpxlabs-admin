@@ -18,6 +18,7 @@ sync:
 context:
   max_depth: 3
   max_nodes: 80
+  max_bytes: 65536
 
 validation:
   rules:
