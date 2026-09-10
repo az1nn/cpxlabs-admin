@@ -69,15 +69,15 @@ def discover_repo_root(start: Path | None = None) -> Path:
 
 def normalize_repository_id(remote: str) -> str:
     value = remote.strip()
-    ssh_match = re.match(r"git@[^:]+:(?P<path>.+?)(?:\.git)?$", value)
+    ssh_match = re.match(r"git@[^:]+:(?P<path>.+)$", value)
     if ssh_match:
-        return ssh_match.group("path")
-    https_match = re.match(r"https?://[^/]+/(?P<path>.+?)(?:\.git)?$", value)
+        return ssh_match.group("path").removesuffix(".git")
+    https_match = re.match(r"https?://[^/]+/(?P<path>.+)$", value)
     if https_match:
-        return https_match.group("path")
+        return https_match.group("path").removesuffix(".git")
     file_match = re.match(r"file://(?P<path>.+)$", value)
     if file_match:
-        return Path(file_match.group("path")).name
+        return Path(file_match.group("path")).name.removesuffix(".git")
     return value.removesuffix(".git")
 
 
