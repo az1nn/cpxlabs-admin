@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=78,<79"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cpxlabs-engineering-graph"
+version = "0.1.0"
+description = "Rebuildable Neo4j engineering control-plane projection for Spec-Driven repositories"
+requires-python = ">=3.13"
+dependencies = [
+  "neo4j==6.3.0",
+  "PyYAML==6.0.3",
+]
+
+[project.scripts]
+graph-engineering = "engineering_graph.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+engineering_graph = ["py.typed"]
