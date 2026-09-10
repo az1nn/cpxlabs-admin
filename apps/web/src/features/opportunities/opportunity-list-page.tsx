@@ -6,18 +6,11 @@ import { DataGrid, type DataGridColumnDef, type DataGridSort } from '../../compo
 import { Can } from '../../platform/authorization/authorization-provider'
 import { appOpportunityService } from './app-opportunity-service'
 import type { OpportunityListSearch } from './opportunity-list-search'
+import { formatMinorUnits } from './opportunity-money'
 import { OpportunityStageBadge } from './opportunity-stage-badge'
 import { opportunityListQueryOptions } from './opportunity.queries'
 
 const sortableColumns = new Set(['name', 'accountName', 'amountMinor', 'expectedCloseDate', 'stage', 'updatedAt'])
-
-function formatMoney(amountMinor: number, currency: string) {
-  try {
-    return new Intl.NumberFormat('en', { style: 'currency', currency }).format(amountMinor / 100)
-  } catch {
-    return `${currency} ${(amountMinor / 100).toFixed(2)}`
-  }
-}
 
 type OpportunityListPageProps = {
   search: OpportunityListSearch
@@ -56,7 +49,7 @@ export function OpportunityListPage({ search, onSearchChange, onCreate, onOpen }
     {
       accessorKey: 'amountMinor',
       header: 'Value',
-      cell: (info) => formatMoney(info.getValue<number>(), info.row.original.currency),
+      cell: (info) => formatMinorUnits(info.getValue<number>(), info.row.original.currency),
     },
     {
       accessorKey: 'stage',

@@ -45,6 +45,22 @@ A `WORKFLOW_CONFLICT` means the local DTO is stale. The web application must:
 4. tell the operator the record changed;
 5. require a fresh user decision before another command.
 
+## Money boundary
+
+`Opportunity.amountMinor` is always an integer count of currency minor units. Do not persist floating-point major amounts and do not assume all currencies use two decimal places.
+
+The web form keeps the operator input as a decimal string until submit. `majorAmountToMinorUnits()` resolves the selected currency's fraction digits and performs the major-to-minor conversion with `BigInt`, then verifies the result fits the shared safe-integer transport range before producing the API `number`.
+
+Examples:
+
+```text
+BRL 125000.50 -> 12500050  (2 fraction digits)
+JPY 1250      -> 1250      (0 fraction digits)
+KWD 1.234     -> 1234      (3 fraction digits)
+```
+
+List/detail display uses the same currency fraction scale. If a future product requires a canonical currency catalogue, exchange rates, arbitrary precision beyond JavaScript safe integers, or locale-aware free-form parsing, start that as a separate money/domain specification rather than widening the Opportunity form ad hoc.
+
 ## Audit
 
 Opportunity create and transition audit rows are committed in the same database transaction as the domain mutation. Do not move required durable audit to an asynchronous UI call, event handler, best-effort logger or post-commit callback.
@@ -85,6 +101,7 @@ A workflow change is incomplete until the following remain green:
 - optimistic concurrency test;
 - atomic audit rollback test;
 - authorization matrix;
+- currency-aware minor-unit conversion tests;
 - DataProvider CRUD-only architecture assertion;
 - Storybook + axe states for the workflow panel;
 - Playwright read-only, successful transition, terminal and stale-version recovery journeys.

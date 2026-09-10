@@ -4,18 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { appOpportunityService } from './app-opportunity-service'
+import { formatMinorUnits } from './opportunity-money'
 import { OpportunityServiceError } from './opportunity.service'
 import { OpportunityStageBadge } from './opportunity-stage-badge'
 import { OpportunityWorkflowPanel } from './opportunity-workflow-panel'
 import { opportunityDetailQueryOptions, opportunityKeys } from './opportunity.queries'
-
-function formatMoney(amountMinor: number, currency: string) {
-  try {
-    return new Intl.NumberFormat('en', { style: 'currency', currency }).format(amountMinor / 100)
-  } catch {
-    return `${currency} ${(amountMinor / 100).toFixed(2)}`
-  }
-}
 
 type OpportunityDetailPageProps = {
   opportunityId: string
@@ -77,7 +70,7 @@ export function OpportunityDetailPage({ opportunityId, onBack }: OpportunityDeta
             </div>
             <div>
               <p className="m-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">Value</p>
-              <p className="mb-0 mt-1 text-sm font-medium">{formatMoney(opportunity.amountMinor, opportunity.currency)}</p>
+              <p className="mb-0 mt-1 text-sm font-medium">{formatMinorUnits(opportunity.amountMinor, opportunity.currency)}</p>
             </div>
             <div>
               <p className="m-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">Expected close</p>

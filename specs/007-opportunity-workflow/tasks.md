@@ -87,6 +87,10 @@
 - [x] T058 Re-run `$speckit-analyze` against FR-001..FR-025 and constitution
 - [x] T059 Execute `$speckit-converge` against SC-001..SC-009; append tasks only for real uncovered gaps
 
+## Phase 9: Convergence Hardening
+
+- [x] T060 [P] [US2] Replace fixed two-decimal frontend money conversion with currency-aware minor-unit parsing from decimal strings using `BigInt`; cover BRL, JPY, KWD, precision rejection and safe-integer bounds
+
 ## Dependencies
 
 ```text
@@ -105,14 +109,16 @@ Fastify API
 Web OpportunityService + UI
       ↓
 Browser/a11y/convergence / PR #13
+      ↓
+Currency minor-unit convergence hardening
 ```
 
 Backend workflow and audit correctness are blocking gates before frontend workflow actions are implemented. The frontend can never compensate for a missing server transition rule.
 
 ## Convergence
 
-All 59 tasks are complete. Final requirement and success-criterion mapping is recorded in `convergence.md`. No additional convergence task was required.
+All 60 tasks are complete. Final requirement and success-criterion mapping is recorded in `convergence.md`. T060 was appended during final convergence after identifying an incorrect fixed-two-decimal assumption in the web money boundary.
 
 ## Format Validation
 
-All 59 tasks use Spec Kit checkbox/task identifiers. User-story work is labeled `[US1]`–`[US5]`; independently executable tasks use `[P]` where applicable.
+All 60 tasks use Spec Kit checkbox/task identifiers. User-story work is labeled `[US1]`–`[US5]`; independently executable tasks use `[P]` where applicable.

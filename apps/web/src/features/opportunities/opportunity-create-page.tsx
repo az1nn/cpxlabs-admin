@@ -4,13 +4,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthorization } from '../../platform/authorization/authorization-provider'
 import { appOpportunityService } from './app-opportunity-service'
 import { OpportunityForm } from './opportunity-form'
+import { majorAmountToMinorUnits } from './opportunity-money'
 import { opportunityKeys } from './opportunity.queries'
 import type { OpportunityFormValues } from './opportunity.schema'
 
 const emptyOpportunity: OpportunityFormValues = {
   name: '',
   accountName: '',
-  amount: 0,
+  amount: '',
   currency: 'BRL',
   expectedCloseDate: '',
 }
@@ -24,13 +25,16 @@ export function OpportunityCreatePage({ onCreated, onCancel }: OpportunityCreate
   const authorization = useAuthorization()
   const queryClient = useQueryClient()
   const mutation = useMutation({
-    mutationFn: (values: OpportunityFormValues) => appOpportunityService.create({
-      name: values.name.trim(),
-      accountName: values.accountName.trim(),
-      amountMinor: Math.round(values.amount * 100),
-      currency: values.currency.trim().toUpperCase(),
-      expectedCloseDate: values.expectedCloseDate,
-    }),
+    mutationFn: (values: OpportunityFormValues) => {
+      const currency = values.currency.trim().toUpperCase()
+      return appOpportunityService.create({
+        name: values.name.trim(),
+        accountName: values.accountName.trim(),
+        amountMinor: majorAmountToMinorUnits(values.amount, currency),
+        currency,
+        expectedCloseDate: values.expectedCloseDate,
+      })
+    },
     onSuccess: async (opportunity) => {
       await queryClient.invalidateQueries({ queryKey: opportunityKeys.all })
       onCreated(opportunity.id)

@@ -2,7 +2,7 @@
 
 **Feature**: `007-opportunity-workflow`  
 **Slices**: 007A backend / PR #12; 007B web / PR #13  
-**Result**: converged with no uncovered implementation tasks
+**Result**: converged after one final hardening task (T060)
 
 ## Functional-requirement analysis
 
@@ -61,6 +61,21 @@ No strictness or quality gate was weakened. The feature adds domain, repository,
 
 No new state manager, framework, queue, cache or generic workflow engine was introduced. The reference lifecycle remains intentionally explicit and application-owned. ADR-0015 records the durable command/concurrency boundary.
 
+## Final convergence hardening
+
+The first convergence pass exposed one real implementation gap: the web layer converted major amounts with `Math.round(amount * 100)` and displayed values by dividing by `100`, which incorrectly assumes every currency has two fractional digits.
+
+T060 replaces that assumption with a currency-aware money boundary:
+
+- form amounts remain decimal strings until conversion;
+- persistence conversion uses `BigInt` rather than floating-point multiplication;
+- fraction digits come from the runtime currency formatter, with the reference contract retaining its existing fallback for unsupported ISO-style codes;
+- safe-integer transport bounds remain enforced before conversion to `number`;
+- list/detail formatting uses the same currency scale;
+- tests cover BRL (2), JPY (0), KWD (3), excessive precision and safe-integer overflow.
+
+This hardening changes no server contract or domain persistence shape; `amountMinor` remains the canonical integer boundary.
+
 ## Convergence decision
 
-No additional implementation task is required for FR-001..FR-025 or SC-001..SC-009. Future configurable pipelines, backward transitions, terminal reopening, ownership, approvals, forecasting and idempotency keys remain explicitly outside feature 007 and should begin as separate specifications if introduced.
+T060 was the only additional implementation task discovered by final review and is now complete. No other uncovered task remains for FR-001..FR-025 or SC-001..SC-009. Future configurable pipelines, backward transitions, terminal reopening, ownership, approvals, forecasting and idempotency keys remain explicitly outside feature 007 and should begin as separate specifications if introduced.

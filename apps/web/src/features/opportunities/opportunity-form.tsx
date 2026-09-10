@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Button, FormField, Input } from '@cpxlabs-admin/ui'
 import { useForm } from 'react-hook-form'
 
+import { currencyMinorUnitStep } from './opportunity-money'
 import { opportunityFormSchema, type OpportunityFormValues } from './opportunity.schema'
 
 type OpportunityFormProps = {
@@ -23,6 +24,8 @@ export function OpportunityForm({
     resolver: zodResolver(opportunityFormSchema),
     defaultValues,
   })
+  const currency = form.watch('currency')
+  const minorUnitStep = currencyMinorUnitStep(currency)
 
   return (
     <form
@@ -43,11 +46,12 @@ export function OpportunityForm({
         <FormField label="Amount" htmlFor="opportunity-amount" error={form.formState.errors.amount?.message}>
           <Input
             id="opportunity-amount"
-            type="number"
-            min="0"
-            step="0.01"
+            type="text"
             inputMode="decimal"
-            {...form.register('amount', { valueAsNumber: true })}
+            pattern="[0-9]+([.][0-9]+)?"
+            placeholder={`Minor-unit step ${minorUnitStep}`}
+            title={`Use a non-negative decimal amount. ${currency.trim().toUpperCase() || 'Currency'} supports increments of ${minorUnitStep}.`}
+            {...form.register('amount')}
           />
         </FormField>
         <FormField label="Currency" htmlFor="opportunity-currency" error={form.formState.errors.currency?.message}>
