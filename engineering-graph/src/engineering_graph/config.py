@@ -22,6 +22,7 @@ class Neo4jSettings:
 class ContextBudget:
     max_depth: int
     max_nodes: int
+    max_bytes: int = 65536
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +54,10 @@ def _run_git(repo_root: Path, *args: str) -> str | None:
         return None
     value = result.stdout.strip()
     return value or None
+
+
+def current_git_revision(repo_root: Path) -> str | None:
+    return _run_git(repo_root, "rev-parse", "HEAD")
 
 
 def discover_repo_root(start: Path | None = None) -> Path:
@@ -118,6 +123,7 @@ def load_settings(
         context=ContextBudget(
             max_depth=int(context_raw.get("max_depth", 3)),
             max_nodes=int(context_raw.get("max_nodes", 80)),
+            max_bytes=int(context_raw.get("max_bytes", 65536)),
         ),
         validation_rules={
             str(name): str(severity)
