@@ -10,8 +10,8 @@
 - [x] T002 [P] Validate specification quality checklist and resolve clarification defaults
 - [x] T003 [P] Research tenant selector validation, cache isolation, shared-table persistence and RLS tradeoffs
 - [x] T004 Define data model, migration invariants and session/tenant transport contracts
-- [ ] T005 Add ADR-0016 for stateless URL selection, server-validated RequestContext and mandatory repository scoping
-- [ ] T006 Run `$speckit-analyze` across FR-001..FR-029, SC-001..SC-009 and constitution; freeze design PR after green Spec Kit/CI
+- [x] T005 Add ADR-0016 for stateless URL selection, server-validated RequestContext and mandatory repository scoping
+- [x] T006 Run `$speckit-analyze` across FR-001..FR-029, SC-001..SC-009 and constitution; freeze design PR after green Spec Kit/CI
 
 ## Phase 2: Shared Contracts and Persistence Foundation (008A / new PR #15)
 
