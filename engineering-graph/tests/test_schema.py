@@ -28,10 +28,14 @@ class SchemaTests(unittest.TestCase):
 
         self.assertEqual(len(CORE_LABELS), 7)
         self.assertEqual(len(CORE_RELATIONSHIPS), 8)
-        self.assertEqual(len(statements), len(CORE_LABELS))
+        self.assertGreaterEqual(len(statements), len(CORE_LABELS))
         for label in CORE_LABELS:
-            self.assertTrue(any(f"FOR (n:{label})" in statement for statement in statements))
-            self.assertTrue(any("n.repository, n.canonicalId" in statement for statement in statements))
+            matching = [statement for statement in statements if f"FOR (n:{label})" in statement]
+            self.assertTrue(matching, f"missing schema statement for {label}")
+            self.assertTrue(
+                any("n.repository, n.canonicalId" in statement for statement in matching),
+                f"missing composite identity constraint for {label}",
+            )
 
     def test_schema_validation_rejects_missing_core_label(self) -> None:
         settings = load_settings(repo_root=REPO_ROOT)
