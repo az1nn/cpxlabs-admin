@@ -18,6 +18,8 @@ description: "Task list template for feature implementation"
 - **[P]**: Can run in parallel (different files, no dependencies)
 - **[Story]**: Which user story this task belongs to (e.g., US1, US2, US3)
 - Include exact file paths in descriptions
+- When a real dependency exists, record it explicitly as `(depends: T001,T002)`; Engineering Graph never infers dependency edges from phase order alone.
+- Keep task IDs stable after review so graph identity/PR traceability remain deterministic.
 
 ## Path Conventions
 
@@ -91,7 +93,7 @@ Examples of foundational tasks (adjust based on your project):
 
 - [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
 - [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
+- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends: T012,T013)
 - [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
 - [ ] T016 [US1] Add validation and error handling
 - [ ] T017 [US1] Add logging for user story 1 operations
@@ -193,6 +195,7 @@ Examples of foundational tasks (adjust based on your project):
 - All tests for a user story marked [P] can run in parallel
 - Models within a story marked [P] can run in parallel
 - Different user stories can be worked on in parallel by different team members
+- When Engineering Graph is enabled, `graph-engineering waves --spec <SPEC>` may propose conflict-free waves from explicit dependencies and artifact overlap; it is derived planning evidence, not authority to bypass review or CI.
 
 ---
 
@@ -250,3 +253,4 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+- Graph Engineering is a derived projection: canonical task status/dependencies remain in this file.
