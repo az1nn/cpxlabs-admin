@@ -103,6 +103,24 @@ ios/ or android/
 **Structure Decision**: [Document the selected structure and reference the real
 directories captured above]
 
+## Engineering Graph References *(recommended when Graph Engineering is enabled)*
+
+<!--
+  Keep graph-relevant relationships explicit in canonical Markdown. The graph is derived.
+  - List ADR IDs that materially constrain this plan (for example ADR-0017).
+  - Name prerequisite Specs/Tasks explicitly where real dependencies exist.
+  - Use exact repository paths for implementation/test boundaries where known.
+  - Do not invent dependency edges from phase order alone.
+-->
+
+**Constrained by ADRs**: [ADR-####, ...]
+
+**Depends on Specs/Tasks**: [SPEC-###-..., T###, ... or None]
+
+**Primary implementation paths**: [exact repository paths when known]
+
+**Primary validation paths**: [exact repository paths when known]
+
 ## Complexity Tracking
 
 > **Fill ONLY if Constitution Check has violations that must be justified**
