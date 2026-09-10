@@ -1,0 +1,34 @@
+schema_version: 1
+
+repository:
+  id: auto
+
+neo4j:
+  uri: bolt://127.0.0.1:7687
+  user: neo4j
+  database: neo4j
+
+sync:
+  specs_glob: specs/[0-9][0-9][0-9]-*/spec.md
+  tasks_name: tasks.md
+  plans_name: plan.md
+  adr_glob: docs/adr/[0-9][0-9][0-9][0-9]-*.md
+  prune_stale: true
+
+context:
+  max_depth: 3
+  max_nodes: 80
+
+validation:
+  rules:
+    enforced-spec-no-task: error
+    task-dependency-cycle: error
+    completed-task-no-code: warning
+    completed-task-no-test: warning
+    critical-requirement-no-test: warning
+    adr-no-consumer: warning
+  historical_spec_prefixes:
+    - SPEC-001-
+    - SPEC-002-
+    - SPEC-003-
+    - SPEC-004-
