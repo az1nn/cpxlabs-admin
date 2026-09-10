@@ -1,6 +1,12 @@
 # AGENTS.md
 
-This repository uses GitHub Spec Kit for material feature development.
+This repository uses GitHub Spec Kit for material feature development and a repository-local Neo4j Engineering Graph as derived navigation/context infrastructure.
+
+## Source of Truth
+
+Canonical knowledge is always authored in Git-backed files: `.specify/`, `specs/`, `docs/adr/`, source code, tests and Git history. The Engineering Graph is a rebuildable projection only. Never author canonical requirements, architecture decisions, task state, implementation evidence or test evidence directly in Neo4j.
+
+If Neo4j is unavailable, continue from the canonical files. Graph unavailability may reduce planning/context automation but MUST NOT block application runtime or change business behavior.
 
 ## Start Here
 
@@ -13,6 +19,19 @@ Before changing a material feature, read:
 5. relevant ADRs under `docs/adr/`
 
 If a material feature has no active Spec Kit artifacts, create them before implementation.
+
+When the Engineering Graph is available, use it to reduce context and validate dependencies rather than replacing the files above:
+
+```bash
+cd engineering-graph
+graph-engineering sync
+graph-engineering validate
+graph-engineering impact <CANONICAL_ID>
+graph-engineering context <TASK_CANONICAL_ID>
+graph-engineering waves --spec <SPEC_CANONICAL_ID>
+```
+
+Treat graph results as derived evidence. Before editing, follow returned `sourcePath`/`path` references to the canonical files.
 
 ## Spec Kit Commands
 
@@ -31,6 +50,19 @@ OpenCode is supported through the official Specify CLI integration switch, not s
 
 Specifications `001` through `004` are historical retrofits. New feature work starts through Spec Kit; do not use those historical files as evidence that the earlier implementation followed Spec Kit originally.
 
+## Graph-Friendly Authoring
+
+Stable explicit references improve deterministic graph quality. Prefer these conventions when they are known during authoring:
+
+- keep Spec Kit requirement IDs (`FR-###`, `SC-###`) and task IDs (`T###`) stable inside a feature;
+- reference ADRs by stable ID such as `ADR-0017`;
+- place repository paths in backticks when a task is expected to change or validate a concrete file;
+- express real task dependencies explicitly with `depends: T001,T002` instead of relying on phase ordering;
+- optional YAML frontmatter may add graph metadata, but must remain readable and useful without Neo4j;
+- never add a graph edge merely because an AI model considers two concepts similar.
+
+The graph canonicalizes local IDs under the parent spec, e.g. `SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T001`, so task IDs can remain human-friendly in `tasks.md`.
+
 ## Architecture Rules
 
 - `apps/web` may depend on shared contracts/providers but never Prisma/database/Fastify implementation details.
@@ -41,12 +73,26 @@ Specifications `001` through `004` are historical retrofits. New feature work st
 - Authorization UI checks are UX only. Server authorization is authoritative and deny-by-default.
 - Add a package only when there is a concrete reuse/boundary need; avoid premature internal frameworks.
 - Structural/cross-cutting decisions require an ADR.
+- No application package may import the Neo4j driver or `engineering_graph`; Graph Engineering belongs to development/CI tooling only.
+
+## Graph-Assisted Planning
+
+For material work after `tasks.md` exists:
+
+1. run `graph-engineering sync`;
+2. run `graph-engineering validate` and fix error-level findings;
+3. run `graph-engineering ready --spec <SPEC>` and `graph-engineering conflicts --spec <SPEC>`;
+4. use `graph-engineering waves --spec <SPEC>` to propose parallel work only when the explicit dependency DAG and changed-artifact evidence support it;
+5. use `graph-engineering context <TASK>` to build a bounded context package for an agent/worktree;
+6. re-sync after task/spec/ADR/code/test/PR evidence changes.
+
+A generated execution wave is a plan, not authority to bypass branch/MR ownership, CI, review or the Spec Kit lifecycle.
 
 ## Quality Gates
 
 Do not weaken TypeScript or CI rules to make a change pass.
 
-Baseline commands:
+Baseline application commands:
 
 ```bash
 pnpm typecheck
@@ -56,7 +102,18 @@ pnpm test:storybook
 pnpm e2e
 ```
 
-Keep `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` enabled. Critical HTTP/database journeys must remain covered against the real reference API and PostgreSQL where applicable.
+Engineering Graph validation is additional:
+
+```bash
+cd engineering-graph
+python -m unittest discover -s tests -v
+graph-engineering doctor --wait 60
+graph-engineering schema
+graph-engineering sync
+graph-engineering validate
+```
+
+Keep `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` enabled. Critical HTTP/database journeys must remain covered against the real reference API and PostgreSQL where applicable. Graph validation supplements but never replaces application tests.
 
 ## Pull Requests
 
@@ -67,5 +124,7 @@ A material PR should include:
 - ADRs added/changed
 - tests and validation performed
 - convergence status or remaining gaps
+
+When Graph Engineering is available, the PR should also be syncable into the graph so `PR -> Task -> Spec -> Requirement` and `PR -> CodeArtifact/Test` evidence can be queried where explicit identifiers/changed paths support those edges.
 
 Implementation that diverges materially from the spec/plan must update those artifacts before merge.
