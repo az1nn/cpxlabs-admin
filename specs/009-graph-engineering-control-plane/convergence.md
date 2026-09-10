@@ -2,7 +2,7 @@
 
 **Feature**: `SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE`  
 **Date**: 2026-09-10  
-**Status**: Pending final post-convergence gates
+**Status**: Converged
 
 ## Conclusion
 
@@ -48,28 +48,31 @@ Evidence:
 | SC-006 bounded Markdown/JSON context packages | PASS | Context Builder tests, configured budget, CI JSON context smoke |
 | SC-007 validator error/warning behavior | PASS | validator fixtures cover error/warning/off/cycle; clean repository validation passes |
 | SC-008 ephemeral CI graph rebuild | PASS | `neo4j:2026.07.1` service, schema init, full sync, no persistent external graph |
-| SC-009 existing product + Spec Kit gates remain authoritative | PASS | independent CI workflows; product quality/browser and Spec Kit green before convergence |
+| SC-009 existing product + Spec Kit gates remain authoritative | PASS | independent CI workflows; product quality/browser and Spec Kit green on the converged HEAD |
 | SC-010 delete/rebuild + runtime independence documented | PASS | README/development/architecture docs and product dependency guard |
 
 ## Functional requirement convergence
 
 `analysis.md` maps FR-001..FR-034 to implementation/tasks. Final convergence found no missing functional behavior beyond the SC-004 CLI/smoke gap described above. The fix does not expand the schema, data model or architecture boundary.
 
-## Real Neo4j validation
+## Final validation evidence
 
-Before this convergence document was created, the Engineering Graph workflow completed successfully against a real ephemeral Neo4j 2026.07.1 service, including:
+The final converged HEAD passed all three independent gates:
 
-- Python package installation;
-- offline unit suite;
-- application dependency isolation check;
-- Neo4j readiness;
-- versioned schema initialization;
-- full repository sync;
-- second full sync/idempotency stats comparison;
-- graph validation;
-- impact/ready/conflicts/context/waves/stats smoke queries.
+1. **Engineering Graph / Neo4j** — PASS
+   - Python package installation;
+   - offline unit suite;
+   - application dependency isolation check;
+   - Neo4j readiness;
+   - versioned schema initialization;
+   - full repository sync;
+   - second full sync/idempotency stats comparison;
+   - graph validation;
+   - explicit impact/ready/conflicts/drift/context/waves/stats smoke queries.
+2. **Spec Kit** — PASS.
+3. **Existing product CI** — PASS, including quality, PostgreSQL migration/seed, typecheck, tests, build, Storybook accessibility checks and Playwright E2E.
 
-The final post-convergence run additionally must prove the new `drift` command against Neo4j before PR freeze.
+T071 is complete and the feature branch is frozen for review.
 
 ## Deferred by design
 
@@ -85,12 +88,6 @@ The following are intentionally not convergence gaps because the feature spec ma
 
 Those correspond to later Graph Engineering roadmap stages and require separate MRs.
 
-## Freeze rule
+## Freeze state
 
-The feature becomes `Converged` only when the final HEAD containing this document, the explicit drift CLI/smoke fix and task reconciliation passes all three independent gates:
-
-1. Engineering Graph / Neo4j;
-2. Spec Kit;
-3. existing product CI (`quality` + `browser-tests`).
-
-Until then T071 remains open and PR #15 remains draft.
+`SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE` is converged. T001–T072 are complete, the final architecture/product/spec gates passed, and PR #15 is ready for review. Further scope changes must be implemented through a new Spec Kit feature branch and PR rather than appended to this frozen change set.
