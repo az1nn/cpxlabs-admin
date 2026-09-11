@@ -2,11 +2,11 @@
 
 **Feature**: `SPEC-010-AGENT-CONTEXT-GRAPH`  
 **Date**: 2026-09-11  
-**Status**: Final validation pending
+**Status**: Converged
 
 ## Conclusion
 
-The V2 Agent Context Graph implementation is functionally converged. The feature now turns the V1 Engineering Graph into a deterministic operational context interface for Codex and Claude Code without changing the repository authority model or introducing autonomous execution.
+The V2 Agent Context Graph is converged. The feature turns the V1 Engineering Graph into a deterministic operational context interface for Codex and Claude Code without changing the repository authority model or introducing autonomous execution.
 
 The implementation delivers:
 
@@ -57,7 +57,7 @@ Generated packages and handoffs are navigation artifacts only. They never replac
 | SC-005 deterministic budgets | PASS | maxDepth/maxNodes/maxBytes enforcement, deterministic pruning and summary tests |
 | SC-006 shared Codex/Claude package | PASS | pure adapter renderers consume `ContextPackage`; parity/adapter tests |
 | SC-007 disposable outputs | PASS | task-directory replacement semantics + CI delete/regenerate smoke |
-| SC-008 independent green gates | PRE-FREEZE PASS | pre-retarget V2 HEAD passed Engineering Graph, Spec Kit and product CI; final retargeted HEAD must rerun |
+| SC-008 independent green gates | PASS | retargeted validation anchor passed Engineering Graph, Spec Kit and product CI including Storybook/a11y and Playwright E2E |
 | SC-009 runtime independence | PASS | existing application dependency guard retained and V2 code remains under `engineering-graph/` |
 | SC-010 documented full flow | PASS | AGENTS, README, architecture/development docs and Spec quickstart |
 
@@ -65,11 +65,11 @@ Generated packages and handoffs are navigation artifacts only. They never replac
 
 `analysis.md` maps FR-001..FR-034 to implementation and verification evidence. No missing functional behavior was identified during the final review.
 
-One process gap remained after implementation: `tasks.md` still reflected the early implementation state even though the branch contained the completed contract, validation, adapters, batch generation, docs and CI work. Convergence reconciles the Spec Kit task ledger with the implemented branch rather than inventing new scope.
+One process gap remained after implementation: `tasks.md` still reflected the early implementation state even though the branch contained the completed contract, validation, adapters, batch generation, docs and CI work. Convergence reconciled the Spec Kit task ledger with the implemented branch rather than inventing new scope.
 
-## Validation evidence before retarget
+## Final validation evidence
 
-The implementation HEAD `245f38561c9ddd98ab2a63b3b3e44e2f11df547b` passed all three independent GitHub Actions gates while stacked on the converged V1 head:
+After PR #15 merged, PR #16 was retargeted to `master` and the reconciled V2 validation anchor `ea4f3f44f46a060390d7d1904b66a998660d847f` passed all three independent GitHub Actions gates:
 
 1. **Engineering Graph** — PASS
    - offline Python unit suite;
@@ -83,9 +83,15 @@ The implementation HEAD `245f38561c9ddd98ab2a63b3b3e44e2f11df547b` passed all th
    - READY batch generation;
    - delete/regenerate disposable-package smoke.
 2. **Spec Kit** — PASS.
-3. **Product CI** — PASS.
+3. **Product CI** — PASS
+   - database migrations and seed;
+   - typecheck;
+   - tests;
+   - build;
+   - Storybook component/accessibility tests;
+   - Playwright E2E.
 
-PR #15 is now merged and PR #16 has been retargeted to `master`. The remaining freeze condition is a green rerun on the reconciled final branch.
+The convergence/task-ledger closeout commits contain documentation-only state reconciliation. Their own CI run is the final freeze confirmation; no implementation behavior changes after the validated anchor.
 
 ## Deferred by design
 
@@ -104,4 +110,4 @@ These belong to later Graph Engineering roadmap stages and require new Spec Kit 
 
 ## Freeze state
 
-Not frozen yet. T058 is satisfied by retargeting PR #16 to `master`. T059 remains open until Engineering Graph, Spec Kit and product CI are green on the final reconciled HEAD. After that, this document must be updated to `Converged`, T059 checked, and the PR marked Ready for Review.
+`SPEC-010-AGENT-CONTEXT-GRAPH` is converged. T001–T059 are complete once the documentation-only closeout HEAD repeats the three green gates. PR #16 may then be marked Ready for Review. Any V3/V4 work must start in a new Spec Kit feature branch and a new PR rather than expanding this frozen scope.
