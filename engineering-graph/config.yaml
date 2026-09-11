@@ -20,6 +20,36 @@ context:
   max_nodes: 80
   max_bytes: 65536
 
+graphrag:
+  provider: hashing
+  model: hashing-v1
+  dimensions: 256
+  chunk_max_chars: 1800
+  chunk_overlap_chars: 200
+  batch_size: 64
+  http_timeout_seconds: 30
+  include_extensions:
+    - .md
+    - .txt
+    - .py
+    - .ts
+    - .tsx
+    - .js
+    - .mjs
+    - .json
+    - .yaml
+    - .yml
+  excluded_prefixes:
+    - node_modules
+    - dist
+    - coverage
+    - storybook-static
+    - playwright-report
+    - test-results
+    - engineering-graph/.graphrag
+    - engineering-graph/.execution
+    - engineering-graph/context-packages
+
 validation:
   rules:
     enforced-spec-no-task: error
