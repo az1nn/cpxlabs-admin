@@ -9,20 +9,25 @@ from engineering_graph.context import ContextPackage, build_context, render_cont
 
 
 class FakeStore:
+    source_revision = "abc123"
+
     def query_file(self, filename: str, parameters: dict[str, object]):
         self.filename = filename
         self.parameters = parameters
         return [
             {
+                "sourceRevision": self.source_revision,
                 "task": {
                     "canonicalId": "SPEC-010-EXAMPLE:T001",
                     "title": "Implement",
                     "sourcePath": "specs/010-example/tasks.md",
+                    "sourceRevision": self.source_revision,
                 },
                 "spec": {
                     "canonicalId": "SPEC-010-EXAMPLE",
                     "title": "Example",
                     "sourcePath": "specs/010-example/spec.md",
+                    "sourceRevision": self.source_revision,
                 },
                 "requirements": [
                     {"canonicalId": "SPEC-010-EXAMPLE:FR-001", "text": "Trace"},
@@ -35,6 +40,10 @@ class FakeStore:
                 "pullRequests": [{"canonicalId": "example/project#1", "number": 1}],
             }
         ]
+
+
+class StaleFakeStore(FakeStore):
+    source_revision = "old-revision"
 
 
 class LargeFakeStore(FakeStore):
@@ -69,7 +78,8 @@ class ContextTests(unittest.TestCase):
             prune_stale=True,
         )
 
-    def test_depth_one_excludes_spec_second_hop_requirements_and_adrs(self) -> None:
+    @patch("engineering_graph.context.current_git_revision", return_value="abc123")
+    def test_depth_one_excludes_spec_second_hop_requirements_and_adrs(self, _revision) -> None:
         package = build_context(FakeStore(), self.settings(), "SPEC-010-EXAMPLE:T001", ContextBudget(1, 20))
         self.assertIsNotNone(package.spec)
         self.assertEqual(package.requirements, ())
@@ -78,7 +88,8 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(len(package.code_artifacts), 1)
         self.assertTrue(package.truncated)
 
-    def test_node_budget_is_hard_bound(self) -> None:
+    @patch("engineering_graph.context.current_git_revision", return_value="abc123")
+    def test_node_budget_is_hard_bound(self, _revision) -> None:
         package = build_context(FakeStore(), self.settings(), "SPEC-010-EXAMPLE:T001", ContextBudget(3, 4))
         payload = package.to_dict()
         related = sum(
@@ -90,12 +101,24 @@ class ContextTests(unittest.TestCase):
         self.assertGreater(package.summary.truncated_nodes, 0)
 
     @patch("engineering_graph.context.current_git_revision", return_value="abc123")
+    def test_node_budget_rejects_less_than_mandatory_task_and_spec(self, _revision) -> None:
+        with self.assertRaisesRegex(ValueError, "cannot fit mandatory task/spec"):
+            build_context(FakeStore(), self.settings(), "SPEC-010-EXAMPLE:T001", ContextBudget(3, 1))
+
+    @patch("engineering_graph.context.current_git_revision", return_value="abc123")
     def test_semantic_package_is_reproducible_excluding_operational_timestamp(self, _revision) -> None:
         first = build_context(FakeStore(), self.settings(), "SPEC-010-EXAMPLE:T001")
         second = build_context(FakeStore(), self.settings(), "SPEC-010-EXAMPLE:T001")
         self.assertEqual(first.semantic_json(), second.semantic_json())
         self.assertEqual(first.source_revision, "abc123")
         self.assertEqual(first.repository, "example/project")
+        self.assertEqual(first.freshness, "current")
+
+    @patch("engineering_graph.context.current_git_revision", return_value="new-revision")
+    def test_stale_graph_projection_is_marked_stale_at_generation(self, _revision) -> None:
+        package = build_context(StaleFakeStore(), self.settings(), "SPEC-010-EXAMPLE:T001")
+        self.assertEqual(package.source_revision, "old-revision")
+        self.assertEqual(package.freshness, "stale")
 
     @patch("engineering_graph.context.current_git_revision", return_value="abc123")
     def test_byte_budget_truncates_deterministically(self, _revision) -> None:
@@ -117,12 +140,14 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(restored.package_version, "1")
         self.assertTrue(restored.provenance)
 
-    def test_markdown_reminds_agent_that_graph_is_derived(self) -> None:
+    @patch("engineering_graph.context.current_git_revision", return_value="abc123")
+    def test_markdown_reminds_agent_that_graph_is_derived(self, _revision) -> None:
         package = build_context(FakeStore(), self.settings(), "SPEC-010-EXAMPLE:T001")
         rendered = render_context_markdown(package)
         self.assertIn("Source-of-truth rule", rendered)
         self.assertIn("do not treat Neo4j or generated context files as authoritative", rendered)
         self.assertIn("Source revision", rendered)
+        self.assertIn("Freshness at generation", rendered)
 
 
 if __name__ == "__main__":
