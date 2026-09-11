@@ -1,0 +1,34 @@
+version: 1
+relationships:
+  REALIZED_BY:
+    from: [Requirement]
+    to: [Spec]
+  CONSTRAINED_BY:
+    from: [Spec]
+    to: [ADR]
+  DECOMPOSED_INTO:
+    from: [Spec]
+    to: [Task]
+  DEPENDS_ON:
+    from: [Spec, Task]
+    to: [Spec, Task]
+    same_label: true
+  IMPLEMENTED_BY:
+    from: [Task]
+    to: [CodeArtifact]
+  VALIDATED_BY:
+    from: [Task]
+    to: [Test]
+  IMPLEMENTS:
+    from: [PullRequest]
+    to: [Task]
+  CHANGES:
+    from: [PullRequest]
+    to: [CodeArtifact, Test]
+
+relationship_properties:
+  repository: string
+  sourcePath: string
+  sourceRevision: string
+  syncRunId: string
+  provenance: string

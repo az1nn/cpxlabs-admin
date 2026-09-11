@@ -1,0 +1,90 @@
+version: 1
+nodes:
+  Requirement:
+    identity: [repository, canonicalId]
+    required: [canonicalId, sourceId, kind, sourcePath]
+    properties:
+      canonicalId: string
+      sourceId: string
+      kind: string
+      text: string
+      critical: boolean
+      sourcePath: string
+      line: integer
+      sourceRevision: string
+      syncRunId: string
+  Spec:
+    identity: [repository, canonicalId]
+    required: [canonicalId, featureId, slug, title, status, sourcePath]
+    properties:
+      canonicalId: string
+      featureId: string
+      slug: string
+      title: string
+      status: string
+      sourcePath: string
+      enforced: boolean
+      sourceRevision: string
+      syncRunId: string
+  ADR:
+    identity: [repository, canonicalId]
+    required: [canonicalId, number, title, sourcePath]
+    properties:
+      canonicalId: string
+      number: string
+      title: string
+      status: string
+      sourcePath: string
+      sourceRevision: string
+      syncRunId: string
+  Task:
+    identity: [repository, canonicalId]
+    required: [canonicalId, sourceId, title, status, sourcePath, specId]
+    properties:
+      canonicalId: string
+      sourceId: string
+      title: string
+      status: string
+      priority: integer
+      parallel: boolean
+      userStory: string
+      phase: string
+      sourcePath: string
+      line: integer
+      specId: string
+      sourceRevision: string
+      syncRunId: string
+  CodeArtifact:
+    identity: [repository, canonicalId]
+    required: [canonicalId, path, kind]
+    properties:
+      canonicalId: string
+      path: string
+      kind: string
+      exists: boolean
+      sourceRevision: string
+      syncRunId: string
+  Test:
+    identity: [repository, canonicalId]
+    required: [canonicalId, path, kind]
+    properties:
+      canonicalId: string
+      path: string
+      kind: string
+      exists: boolean
+      sourceRevision: string
+      syncRunId: string
+  PullRequest:
+    identity: [repository, canonicalId]
+    required: [canonicalId, number, state, source]
+    properties:
+      canonicalId: string
+      number: integer
+      title: string
+      state: string
+      url: string
+      headSha: string
+      baseSha: string
+      source: string
+      sourceRevision: string
+      syncRunId: string

@@ -16,7 +16,7 @@
   you should still have a viable MVP (Minimum Viable Product) that delivers value.
 
   Assign priorities (P1, P2, P3, etc.) to each story, where P1 is the most critical.
-  Think of each story as a standalone slice of functionality that can be:
+  Think of each user story as a standalone slice of functionality that can be:
   - Developed independently
   - Tested independently
   - Deployed independently
@@ -27,7 +27,7 @@
 
 [Describe this user journey in plain language]
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: [Explain the value and why this priority level]
 
 **Independent Test**: [Describe how this can be tested independently - e.g., "Can be fully tested by [specific action] and delivers [specific value]"]
 
@@ -42,7 +42,7 @@
 
 [Describe this user journey in plain language]
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: [Explain the value and why this priority level]
 
 **Independent Test**: [Describe how this can be tested independently]
 
@@ -56,7 +56,7 @@
 
 [Describe this user journey in plain language]
 
-**Why this priority**: [Explain the value and why it has this priority level]
+**Why this priority**: [Explain the value and why this priority level]
 
 **Independent Test**: [Describe how this can be tested independently]
 
@@ -81,8 +81,9 @@
 ## Requirements *(mandatory)*
 
 <!--
-  ACTION REQUIRED: The content in this section represents placeholders.
-  Fill them out with the right functional requirements.
+  ACTION REQUIRED: Replace the placeholders with the feature's actual requirements.
+  Keep FR/SC identifiers stable after they become reviewable: the Engineering Graph
+  namespaces them under this Spec and uses them for deterministic traceability.
 -->
 
 ### Functional Requirements
@@ -129,3 +130,11 @@
 - [Assumption about scope boundaries, e.g., "Mobile support is out of scope for v1"]
 - [Assumption about data/environment, e.g., "Existing authentication system will be reused"]
 - [Dependency on existing system/service, e.g., "Requires access to the existing user profile API"]
+
+<!--
+  ENGINEERING GRAPH GUIDANCE (optional metadata, canonical content remains this file):
+  - Keep FR-### and SC-### IDs stable once reviewed.
+  - Reference durable architecture decisions explicitly as ADR-#### when they constrain this spec.
+  - Optional YAML frontmatter may expose machine-readable graph metadata, but never make
+    Neo4j the only place where a requirement/dependency/decision exists.
+-->

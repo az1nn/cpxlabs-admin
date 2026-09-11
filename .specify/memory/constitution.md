@@ -26,7 +26,15 @@ Material changes MUST preserve the appropriate validation layers: unit/integrati
 
 ### V. Simplicity, Ownership, and Evolvability
 
-The starter MUST avoid becoming a bespoke framework. Prefer mature ecosystem libraries behind project-owned boundaries. New packages, services, caches, queues, state managers, or abstractions require a concrete need and a clear consumer. Cross-cutting structural decisions MUST be recorded as ADRs. Implementation details such as ORM, auth vendor, feature-flag vendor, or telemetry exporter MUST remain replaceable behind stable application contracts where practical.
+The starter MUST avoid becoming a bespoke framework. Prefer mature ecosystem libraries behind project-owned boundaries. New packages, services, caches, queues, state managers, or abstractions require a concrete need and a clear consumer. Cross-cutting structural decisions MUST be recorded as ADRs. Implementation details such as ORM, auth vendor, feature-flag vendor, telemetry exporter MUST remain replaceable behind stable application contracts where practical.
+
+### VI. Git-Authoritative Engineering Graph (NON-NEGOTIABLE)
+
+The repository MAY maintain an Engineering Graph to make relationships between requirements, specs, ADRs, tasks, code, tests, pull requests and execution dependencies queryable. Git-backed artifacts remain the sole canonical source of project knowledge and task state. Neo4j or any other graph store MUST be treated as a rebuildable derived projection and MUST NOT become a business-runtime dependency, canonical authoring surface, or hidden source of implementation truth.
+
+Graph edges that participate in blocking validation or execution planning MUST be derivable from deterministic repository evidence. AI/semantic inference MAY assist discovery in a future GraphRAG layer, but inferred relationships MUST NOT silently become authoritative graph edges. Graph unavailability MUST NOT prevent the product from running or prevent engineers from recovering the project state from Git.
+
+The Engineering Graph MAY strengthen CI through architecture/drift validation, but it supplements rather than replaces compiler, unit/integration, browser, accessibility, persistence, security or Spec Kit gates.
 
 ## Enterprise Engineering Constraints
 
@@ -39,16 +47,27 @@ The starter MUST avoid becoming a bespoke framework. Prefer mature ecosystem lib
 - PostgreSQL is the reference relational store. Prisma is an infrastructure adapter and MUST remain behind repository boundaries; exact version pinning is preferred for the reference persistence layer.
 - The reference browser/API topology SHOULD be same-origin to simplify secure cookie sessions, CSRF policy, and deployment behavior.
 - `pnpm-lock.yaml` is versioned and CI installs with `--frozen-lockfile`.
+- Engineering Graph runtime/dependencies MUST remain outside `apps/*` and product `packages/*`; no product code may require Neo4j for correctness or startup.
+- Engineering Graph node identity MUST include repository identity so one graph database can safely project multiple repositories without canonical-id collisions.
+- Blocking graph checks MUST prefer explicit/deterministic evidence over heuristic inference; uncertain evidence should remain a warning or discovery signal until authoring conventions make it deterministic.
 
 ## Spec and Architecture Workflow
 
-The artifact hierarchy is:
+The canonical artifact hierarchy is:
 
 `Constitution -> Feature Spec -> Technical Plan/Research/Contracts -> Tasks -> Implementation/Tests -> Convergence`
+
+When the Engineering Graph is available, it projects that hierarchy plus ADR/code/test/PR/dependency evidence for impact analysis, drift validation, bounded agent context and execution planning. It does not change the authoring hierarchy.
 
 ADRs explain durable, cross-cutting architectural decisions and SHOULD be referenced from the relevant feature plan. Documentation under `docs/` supplements but does not replace a feature spec. Every material PR MUST identify its spec path, state the validation performed, and report unresolved convergence items if any.
 
 For new features, the feature directory under `specs/###-slug/` is the source of truth for scope and acceptance criteria. Completed tasks MUST be checked off rather than silently deleted. When implementation diverges from a plan, update the artifacts or record the architectural change before merge.
+
+Graph-assisted execution MUST follow this order when the graph is available and applicable:
+
+`canonical files -> graph sync -> graph validation/impact/planning -> implementation -> tests -> PR -> graph resync -> convergence`
+
+Generated graph context packages, READY/BLOCKED calculations and execution waves are derived planning artifacts. They MUST NOT bypass explicit task dependencies, branch/MR ownership, review or CI.
 
 ## Governance
 
@@ -56,4 +75,4 @@ This constitution supersedes informal project habits where they conflict. Amendm
 
 All implementation and review work MUST verify constitution compliance. Complexity that violates a principle requires explicit justification in the feature plan's Complexity Tracking section.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-08
+**Version**: 1.1.0 | **Ratified**: 2026-09-08 | **Last Amended**: 2026-09-10
