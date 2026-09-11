@@ -8,6 +8,7 @@ on:
       - 'docs/adr/**'
       - 'docs/architecture/ENGINEERING_GRAPH.md'
       - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
+      - 'docs/architecture/EXECUTION_GRAPH.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -19,6 +20,7 @@ on:
       - 'docs/adr/**'
       - 'docs/architecture/ENGINEERING_GRAPH.md'
       - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
+      - 'docs/architecture/EXECUTION_GRAPH.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -47,6 +49,7 @@ jobs:
       NEO4J_DATABASE: neo4j
       GRAPH_REPOSITORY_ID: az1nn/cpxlabs-admin
       CONTEXT_SPEC_ID: SPEC-010-AGENT-CONTEXT-GRAPH
+      EXECUTION_SPEC_ID: SPEC-011-EXECUTION-GRAPH
 
     steps:
       - name: Checkout full history
@@ -62,7 +65,7 @@ jobs:
       - name: Install Engineering Graph
         run: python -m pip install -e engineering-graph
 
-      - name: Run offline unit tests
+      - name: Run offline unit and Git worktree integration tests
         run: python -m unittest discover -s engineering-graph/tests -v
 
       - name: Verify application packages do not depend on graph runtime
@@ -131,7 +134,7 @@ jobs:
       - name: Smoke fundamental graph queries
         shell: bash
         run: |
-          graph-engineering impact ADR-0018 --depth 3 --limit 100 --json
+          graph-engineering impact ADR-0019 --depth 3 --limit 100 --json
           graph-engineering ready --spec "$CONTEXT_SPEC_ID" --json
           graph-engineering conflicts --spec "$CONTEXT_SPEC_ID" --json
           graph-engineering drift --json
@@ -220,3 +223,74 @@ jobs:
           graph-engineering context-validate \
             "/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/context.json" \
             --strict
+
+      - name: Generate V3 Execution Graph manifest
+        run: |
+          graph-engineering execution-plan \
+            --spec "$EXECUTION_SPEC_ID" \
+            --agent codex \
+            --output /tmp/execution-manifest-1.json \
+            --json | tee /tmp/execution-plan-output.json
+          test -f /tmp/execution-manifest-1.json
+
+      - name: Prove execution manifest semantic reproducibility
+        run: |
+          graph-engineering execution-plan \
+            --spec "$EXECUTION_SPEC_ID" \
+            --agent codex \
+            --output /tmp/execution-manifest-2.json \
+            --json >/tmp/execution-plan-output-2.json
+          python - <<'PY'
+          from pathlib import Path
+          from engineering_graph.execution import load_execution_manifest
+
+          first = load_execution_manifest(Path('/tmp/execution-manifest-1.json'))
+          second = load_execution_manifest(Path('/tmp/execution-manifest-2.json'))
+          if first.semantic_json() != second.semantic_json():
+              raise SystemExit('Execution manifest semantic content changed at the same revision')
+          PY
+
+      - name: Prove execution waves are conflict safe
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from engineering_graph.execution import load_execution_manifest
+
+          manifest = load_execution_manifest(Path('/tmp/execution-manifest-1.json'))
+          wave_by_task = {
+              task: wave.index
+              for wave in manifest.waves
+              for task in wave.tasks
+          }
+          for conflict in manifest.conflicts:
+              left = wave_by_task.get(conflict.left)
+              right = wave_by_task.get(conflict.right)
+              if left is not None and left == right:
+                  raise SystemExit(
+                      f'Conflicting tasks share wave {left}: {conflict.left} <> {conflict.right}'
+                  )
+          print(f'Execution waves: {len(manifest.waves)}; conflicts: {len(manifest.conflicts)}')
+          PY
+
+      - name: Dry-run one V3 allocation without mutating Git worktrees
+        shell: bash
+        run: |
+          EXECUTION_TASK_ID="$(python - <<'PY'
+          from pathlib import Path
+          from engineering_graph.execution import load_execution_manifest
+
+          manifest = load_execution_manifest(Path('/tmp/execution-manifest-1.json'))
+          if manifest.cycles:
+              raise SystemExit('Cannot dry-run execution allocation with dependency cycles')
+          if not manifest.waves or not manifest.waves[0].tasks:
+              raise SystemExit('Execution manifest has no runnable task wave')
+          print(manifest.waves[0].tasks[0])
+          PY
+          )"
+          graph-engineering execution-prepare \
+            /tmp/execution-manifest-1.json \
+            --task "$EXECUTION_TASK_ID" \
+            --execution-root /tmp/execution-graph-dry-run \
+            --dry-run \
+            --json | tee /tmp/execution-dry-run.json
+          test ! -f /tmp/execution-graph-dry-run/leases.json
