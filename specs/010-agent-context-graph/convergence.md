@@ -52,12 +52,12 @@ Generated packages and handoffs are navigation artifacts only. They never replac
 |---|---|---|
 | SC-001 semantic reproducibility | PASS | `semantic_json()` plus repeated-generation unit/CI assertions |
 | SC-002 complete linked task context | PASS | `agent-context.cypher` + portable package groups/provenance |
-| SC-003 READY batch behavior | PASS | READY selector, explicit task mode, manifest tests and CI batch smoke |
+| SC-003 READY batch behavior | PASS | READY selector, explicit task mode, manifest tests and state-independent CI batch smoke |
 | SC-004 strict freshness | PASS | package schema loader + current/stale/unknown freshness report + strict CLI behavior |
 | SC-005 deterministic budgets | PASS | maxDepth/maxNodes/maxBytes enforcement, deterministic pruning and summary tests |
 | SC-006 shared Codex/Claude package | PASS | pure adapter renderers consume `ContextPackage`; parity/adapter tests |
 | SC-007 disposable outputs | PASS | task-directory replacement semantics + CI delete/regenerate smoke |
-| SC-008 independent green gates | PASS | retargeted validation anchor passed Engineering Graph, Spec Kit and product CI including Storybook/a11y and Playwright E2E |
+| SC-008 independent green gates | PASS | retargeted validation anchor passed Engineering Graph, Spec Kit and product CI including Storybook/a11y and Playwright E2E; the freeze candidate repeats the same merge gates |
 | SC-009 runtime independence | PASS | existing application dependency guard retained and V2 code remains under `engineering-graph/` |
 | SC-010 documented full flow | PASS | AGENTS, README, architecture/development docs and Spec quickstart |
 
@@ -67,7 +67,7 @@ Generated packages and handoffs are navigation artifacts only. They never replac
 
 One process gap remained after implementation: `tasks.md` still reflected the early implementation state even though the branch contained the completed contract, validation, adapters, batch generation, docs and CI work. Convergence reconciled the Spec Kit task ledger with the implemented branch rather than inventing new scope.
 
-## Final validation evidence
+## Validation evidence
 
 After PR #15 merged, PR #16 was retargeted to `master` and the reconciled V2 validation anchor `ea4f3f44f46a060390d7d1904b66a998660d847f` passed all three independent GitHub Actions gates:
 
@@ -91,7 +91,16 @@ After PR #15 merged, PR #16 was retargeted to `master` and the reconciled V2 val
    - Storybook component/accessibility tests;
    - Playwright E2E.
 
-The convergence/task-ledger closeout commits contain documentation-only state reconciliation. Their own CI run is the final freeze confirmation; no implementation behavior changes after the validated anchor.
+### Closeout CI hardening
+
+Closing every task in `tasks.md` exposed one validation-workflow assumption: V2 smoke tests were pinned to `T044`, coupling the CI fixture to a transient backlog state. The feature contract never requires a particular task to remain READY after convergence.
+
+The final workflow therefore separates two concerns:
+
+- **portable package / freshness / adapter / reproducibility / disposability smokes** select one deterministic Task that actually exists in the freshly synchronized Neo4j projection, regardless of whether that task is `ready` or `done`;
+- **READY batch smoke** independently executes `context-batch --spec` and validates manifest integrity while allowing `packageCount = 0`, which is the correct result for a fully completed spec.
+
+This hardening changes no product runtime or Agent Context Graph semantics. It makes the CI contract invariant under normal task completion and ensures the smoke validates the graph projection instead of a hard-coded backlog item.
 
 ## Deferred by design
 
@@ -110,4 +119,4 @@ These belong to later Graph Engineering roadmap stages and require new Spec Kit 
 
 ## Freeze state
 
-`SPEC-010-AGENT-CONTEXT-GRAPH` is converged. T001–T059 are complete once the documentation-only closeout HEAD repeats the three green gates. PR #16 may then be marked Ready for Review. Any V3/V4 work must start in a new Spec Kit feature branch and a new PR rather than expanding this frozen scope.
+`SPEC-010-AGENT-CONTEXT-GRAPH` is converged and T001–T059 are complete. The final branch is a freeze candidate and may be marked Ready for Review only after Engineering Graph, Spec Kit and product CI are green on that HEAD. Any V3/V4 work must start in a new Spec Kit feature branch and a new PR rather than expanding this frozen scope.
