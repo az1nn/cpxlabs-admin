@@ -58,6 +58,8 @@ A stale package is not current implementation context. Never bypass strict fresh
 
 AI-assisted work must follow `docs/ai/context-handoff.md`.
 
+The repository-owned source for ChatGPT Project Instructions is `docs/ai/chatgpt-project-instructions.md`. Mirror that file into the ChatGPT Project settings when configuring the project; future policy edits belong in Git first.
+
 Continuously assess whether the current conversation remains a coherent working context. Do not display context-health status on every response and do not recommend a new chat merely because the conversation is long.
 
 Prefer semantic handoff boundaries: completed feature/PR group, Spec Kit phase, milestone, architecture freeze, workstream change, or a point where stale/superseded conversation state materially increases implementation risk.
