@@ -7,6 +7,7 @@ on:
       - 'specs/**'
       - 'docs/adr/**'
       - 'docs/architecture/ENGINEERING_GRAPH.md'
+      - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -17,6 +18,7 @@ on:
       - 'specs/**'
       - 'docs/adr/**'
       - 'docs/architecture/ENGINEERING_GRAPH.md'
+      - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -95,10 +97,80 @@ jobs:
       - name: Smoke fundamental graph queries
         shell: bash
         run: |
-          graph-engineering impact ADR-0017 --depth 3 --limit 100 --json
-          graph-engineering ready --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
-          graph-engineering conflicts --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
+          graph-engineering impact ADR-0018 --depth 3 --limit 100 --json
+          graph-engineering ready --spec SPEC-010-AGENT-CONTEXT-GRAPH --json
+          graph-engineering conflicts --spec SPEC-010-AGENT-CONTEXT-GRAPH --json
           graph-engineering drift --json
-          graph-engineering context SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T061 --format json
-          graph-engineering waves --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
+          graph-engineering context SPEC-010-AGENT-CONTEXT-GRAPH:T044 --format json
+          graph-engineering waves --spec SPEC-010-AGENT-CONTEXT-GRAPH --json
           graph-engineering stats --json
+
+      - name: Generate one portable Agent Context package
+        run: |
+          graph-engineering context-batch \
+            --task SPEC-010-AGENT-CONTEXT-GRAPH:T044 \
+            --output-root /tmp/agent-context-single \
+            --json | tee /tmp/agent-context-single-manifest.json
+          test -f /tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json
+          test -f /tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.md
+          test -f /tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/codex.md
+          test -f /tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/claude.md
+
+      - name: Strictly validate package freshness
+        run: |
+          graph-engineering context-validate \
+            /tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json \
+            --strict --json
+
+      - name: Prove adapter rendering from portable package
+        run: |
+          PACKAGE=/tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json
+          graph-engineering context-adapt "$PACKAGE" --agent codex --output /tmp/codex-handoff.md
+          graph-engineering context-adapt "$PACKAGE" --agent claude --output /tmp/claude-handoff.md
+          grep -q 'AGENTS.md' /tmp/codex-handoff.md
+          grep -q 'SPEC-010-AGENT-CONTEXT-GRAPH:T044' /tmp/codex-handoff.md
+          grep -q 'SPEC-010-AGENT-CONTEXT-GRAPH:T044' /tmp/claude-handoff.md
+
+      - name: Prove semantic package reproducibility
+        shell: bash
+        run: |
+          PACKAGE=/tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json
+          cp "$PACKAGE" /tmp/context-before.json
+          graph-engineering context-batch \
+            --task SPEC-010-AGENT-CONTEXT-GRAPH:T044 \
+            --output-root /tmp/agent-context-single \
+            --json >/tmp/regenerated-manifest.json
+          python - <<'PY'
+          from pathlib import Path
+          from engineering_graph.context_validation import load_context_package
+          before = load_context_package(Path('/tmp/context-before.json'))
+          after = load_context_package(Path('/tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json'))
+          if before.semantic_json() != after.semantic_json():
+              raise SystemExit('Context package semantic content changed at the same revision')
+          PY
+
+      - name: Generate READY task context packages
+        shell: bash
+        run: |
+          graph-engineering context-batch \
+            --spec SPEC-010-AGENT-CONTEXT-GRAPH \
+            --output-root /tmp/agent-context-ready \
+            --json | tee /tmp/agent-context-ready-manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path('/tmp/agent-context-ready-manifest.json').read_text())
+          if payload.get('packageCount', 0) < 1:
+              raise SystemExit('Expected at least one READY task context package')
+          PY
+
+      - name: Prove generated packages are disposable
+        run: |
+          rm -rf /tmp/agent-context-single
+          graph-engineering context-batch \
+            --task SPEC-010-AGENT-CONTEXT-GRAPH:T044 \
+            --output-root /tmp/agent-context-single \
+            --json >/tmp/disposable-regenerated.json
+          graph-engineering context-validate \
+            /tmp/agent-context-single/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json \
+            --strict
