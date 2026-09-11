@@ -4,7 +4,7 @@ Repository-local Neo4j control plane for Spec-Driven and Agent-Driven engineerin
 
 ## Authority boundary
 
-Git-backed artifacts are canonical. Neo4j is a rebuildable projection used for traceability, impact analysis, drift checks, bounded agent context and execution planning. Generated context packages are also disposable derived artifacts. No application runtime depends on this directory.
+Git-backed artifacts are canonical. Neo4j is a rebuildable projection used for traceability, impact analysis, drift checks, bounded agent context and execution planning. Generated context packages, execution manifests and leases are disposable derived artifacts. No application runtime depends on this directory.
 
 ## Local setup
 
@@ -31,16 +31,17 @@ graph-engineering schema
 graph-engineering sync --json
 graph-engineering validate --json
 graph-engineering stats --json
-graph-engineering impact ADR-0018 --depth 3 --json
-graph-engineering ready --spec SPEC-010-AGENT-CONTEXT-GRAPH --json
-graph-engineering conflicts --spec SPEC-010-AGENT-CONTEXT-GRAPH --json
+graph-engineering impact ADR-0019 --depth 3 --json
+graph-engineering ready --spec SPEC-011-EXECUTION-GRAPH --json
+graph-engineering conflicts --spec SPEC-011-EXECUTION-GRAPH --json
 graph-engineering drift --json
-graph-engineering context SPEC-010-AGENT-CONTEXT-GRAPH:T021 --format markdown
-graph-engineering waves --spec SPEC-010-AGENT-CONTEXT-GRAPH --json
+graph-engineering context SPEC-011-EXECUTION-GRAPH:T021 --format markdown
+graph-engineering waves --spec SPEC-011-EXECUTION-GRAPH --json
+graph-engineering execution-plan --spec SPEC-011-EXECUTION-GRAPH --agent codex --output .execution/manifest.json
 graph-engineering reset --yes
 ```
 
-The five fundamental inspection surfaces are `impact`, `ready`, `conflicts`, `drift`, and `context`; `waves` builds on the task DAG/artifact overlap for execution planning.
+The five fundamental inspection surfaces are `impact`, `ready`, `conflicts`, `drift`, and `context`; `waves` and V3 Execution Graph build on the same explicit task DAG/artifact overlap.
 
 ## V1 graph model
 
@@ -89,14 +90,14 @@ V2 turns the bounded Context Builder into a revision-aware package contract that
 
 ```bash
 graph-engineering context-batch \
-  --task SPEC-010-AGENT-CONTEXT-GRAPH:T021
+  --task SPEC-011-EXECUTION-GRAPH:T021
 ```
 
 ### Generate all READY packages for a spec
 
 ```bash
 graph-engineering context-batch \
-  --spec SPEC-010-AGENT-CONTEXT-GRAPH \
+  --spec SPEC-011-EXECUTION-GRAPH \
   --json
 ```
 
@@ -173,7 +174,75 @@ The portable JSON package carries repository, source revision, task identity, bu
 
 `waves` computes a topological task plan from explicit `DEPENDS_ON` relationships and prevents tasks sharing implementation/test artifacts from occupying the same wave. It never replaces review, CI, branch ownership or worktree discipline.
 
-Worktree allocation and agent execution remain V3 concerns; V2 only prepares validated context packages.
+## V3 Execution Graph
+
+V3 binds execution planning to one Git revision and allocates isolated Git worktrees without changing canonical task state.
+
+### Build a revision-bound manifest
+
+```bash
+graph-engineering execution-plan \
+  --spec SPEC-011-EXECUTION-GRAPH \
+  --agent codex \
+  --output .execution/manifests/spec-011.json
+```
+
+The manifest carries READY/BLOCKED tasks, cycles, shared-artifact conflicts and deterministic waves. Planning fails if projected task revisions are stale relative to current Git HEAD.
+
+### Dry-run a wave
+
+```bash
+graph-engineering execution-prepare \
+  .execution/manifests/spec-011.json \
+  --wave 1 \
+  --dry-run \
+  --json
+```
+
+Dry-run performs graph/context reads and freshness checks but creates no worktree and no active lease.
+
+### Prepare a wave
+
+```bash
+graph-engineering execution-prepare \
+  .execution/manifests/spec-011.json \
+  --wave 1
+```
+
+For every selected task V3:
+
+1. validates manifest revision/repository;
+2. confirms selection stays inside one conflict-safe wave;
+3. generates a fresh V2 ContextPackage;
+4. creates/resumes deterministic `exec/<task-safe>` worktree state;
+5. writes the selected Codex/Claude handoff;
+6. acquires a local active lease.
+
+Default derived state:
+
+```text
+engineering-graph/.execution/
+├── leases.json
+├── manifests/
+├── contexts/
+└── worktrees/
+```
+
+The entire root is Git-ignored. Dirty worktree contents are user data and are never considered disposable cleanup state.
+
+### Inspect / release
+
+```bash
+graph-engineering execution-status
+graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T021
+graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T021 --remove-worktree
+```
+
+Removing a dirty worktree fails unless explicit `--force` is supplied. Releasing a lease never changes canonical Task status.
+
+### Execution boundary
+
+V3 does not automatically commit, push, create/merge PRs, supervise long-running coding-agent processes or infer graph truth. A future runner can consume `ExecutionAllocation` without changing the V1/V2/V3 contracts.
 
 ## Drift versus validation
 
@@ -181,25 +250,26 @@ Worktree allocation and agent execution remain V3 concerns; V2 only prepares val
 
 ## CI
 
-`.github/workflows/engineering-graph.yml` starts an ephemeral Neo4j instance, installs this package, runs unit tests, validates schema definitions, performs two full syncs, executes the validator and smoke-tests graph queries plus Agent Context Graph package generation/validation/adapters.
+`.github/workflows/engineering-graph.yml` starts an ephemeral Neo4j instance, installs this package, runs unit/integration tests, validates schema definitions, performs two full syncs, executes the validator and smoke-tests graph queries, Agent Context Graph package generation/validation/adapters and V3 execution-manifest planning.
 
 Existing application CI and Spec Kit CI remain independent and authoritative for their domains.
 
 ## Rebuild / recovery
 
-The graph and generated packages are disposable:
+The graph and generated context/execution metadata are disposable:
 
 ```bash
-rm -rf context-packages/*
+rm -rf context-packages/* .execution/contexts .execution/manifests .execution/leases.json
 graph-engineering reset --yes
 graph-engineering schema
 graph-engineering sync
 graph-engineering validate
-graph-engineering context-batch --spec SPEC-010-AGENT-CONTEXT-GRAPH
 ```
 
-No canonical knowledge is lost by deleting either projection.
+Do not blindly delete `.execution/worktrees/`: inspect `execution-status`/Git worktree state first because those directories may contain uncommitted user work.
+
+No canonical knowledge is lost by deleting the Neo4j projection or clean generated metadata.
 
 ## Deliberately deferred
 
-V2 does not include AST-wide semantic inference, embeddings, GraphRAG, AI-created authoritative relationships, automatic worktree allocation, agent spawning or autonomous merging. Those capabilities require separate specs and MRs.
+V3 does not include embeddings, GraphRAG, AI-created authoritative relationships, distributed multi-host locking, automatic coding-agent supervision, automatic task-status mutation, autonomous commit/push/PR creation or merging. Those capabilities require separate specs and MRs.
