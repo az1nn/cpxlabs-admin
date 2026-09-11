@@ -148,10 +148,6 @@ def cosine_similarity(left: Sequence[float], right: Sequence[float]) -> float:
     return float(sum(a * b for a, b in zip(left, right)))
 
 
-def _architecture_path(path: str) -> bool:
-    return path.startswith(ARCHITECTURE_PREFIXS)  # type: ignore[name-defined]
-
-
 def search_semantic_index(
     index: SemanticIndex,
     query: str,
