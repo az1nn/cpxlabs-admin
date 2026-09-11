@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
 import re
@@ -27,15 +27,36 @@ class ContextBudget:
 
 @dataclass(frozen=True, slots=True)
 class GraphRagSettings:
-    provider: str
-    model: str
-    dimensions: int
-    chunk_max_chars: int
-    chunk_overlap_chars: int
-    include_extensions: tuple[str, ...]
-    excluded_prefixes: tuple[str, ...]
-    batch_size: int
-    http_timeout_seconds: int
+    provider: str = "hashing"
+    model: str = "hashing-v1"
+    dimensions: int = 256
+    chunk_max_chars: int = 1800
+    chunk_overlap_chars: int = 200
+    include_extensions: tuple[str, ...] = (
+        ".md",
+        ".txt",
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".mjs",
+        ".json",
+        ".yaml",
+        ".yml",
+    )
+    excluded_prefixes: tuple[str, ...] = (
+        "node_modules",
+        "dist",
+        "coverage",
+        "storybook-static",
+        "playwright-report",
+        "test-results",
+        "engineering-graph/.graphrag",
+        "engineering-graph/.execution",
+        "engineering-graph/context-packages",
+    )
+    batch_size: int = 64
+    http_timeout_seconds: int = 30
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,7 +66,6 @@ class GraphSettings:
     repository_id: str
     neo4j: Neo4jSettings
     context: ContextBudget
-    graphrag: GraphRagSettings
     validation_rules: dict[str, str]
     historical_spec_prefixes: tuple[str, ...]
     specs_glob: str
@@ -53,6 +73,7 @@ class GraphSettings:
     plans_name: str
     adr_glob: str
     prune_stale: bool
+    graphrag: GraphRagSettings = field(default_factory=GraphRagSettings)
 
 
 def _run_git(repo_root: Path, *args: str) -> str | None:
@@ -130,29 +151,14 @@ def load_settings(
     sync_raw = raw.get("sync", {})
     validation_raw = raw.get("validation", {})
 
+    defaults = GraphRagSettings()
     include_extensions = tuple(
         str(value).lower()
-        for value in graphrag_raw.get(
-            "include_extensions",
-            [".md", ".txt", ".py", ".ts", ".tsx", ".js", ".mjs", ".json", ".yaml", ".yml"],
-        )
+        for value in graphrag_raw.get("include_extensions", defaults.include_extensions)
     )
     excluded_prefixes = tuple(
         str(value).strip("/")
-        for value in graphrag_raw.get(
-            "excluded_prefixes",
-            [
-                "node_modules",
-                "dist",
-                "coverage",
-                "storybook-static",
-                "playwright-report",
-                "test-results",
-                "engineering-graph/.graphrag",
-                "engineering-graph/.execution",
-                "engineering-graph/context-packages",
-            ],
-        )
+        for value in graphrag_raw.get("excluded_prefixes", defaults.excluded_prefixes)
     )
 
     return GraphSettings(
@@ -170,20 +176,6 @@ def load_settings(
             max_nodes=int(context_raw.get("max_nodes", 80)),
             max_bytes=int(context_raw.get("max_bytes", 65536)),
         ),
-        graphrag=GraphRagSettings(
-            provider=os.getenv("GRAPH_RAG_PROVIDER", str(graphrag_raw.get("provider", "hashing"))),
-            model=os.getenv("GRAPH_RAG_EMBEDDING_MODEL", str(graphrag_raw.get("model", "hashing-v1"))),
-            dimensions=_env_int("GRAPH_RAG_DIMENSIONS", int(graphrag_raw.get("dimensions", 256))),
-            chunk_max_chars=int(graphrag_raw.get("chunk_max_chars", 1800)),
-            chunk_overlap_chars=int(graphrag_raw.get("chunk_overlap_chars", 200)),
-            include_extensions=include_extensions,
-            excluded_prefixes=excluded_prefixes,
-            batch_size=int(graphrag_raw.get("batch_size", 64)),
-            http_timeout_seconds=_env_int(
-                "GRAPH_RAG_HTTP_TIMEOUT_SECONDS",
-                int(graphrag_raw.get("http_timeout_seconds", 30)),
-            ),
-        ),
         validation_rules={
             str(name): str(severity)
             for name, severity in (validation_raw.get("rules", {}) or {}).items()
@@ -196,4 +188,20 @@ def load_settings(
         plans_name=str(sync_raw.get("plans_name", "plan.md")),
         adr_glob=str(sync_raw.get("adr_glob", "docs/adr/[0-9][0-9][0-9][0-9]-*.md")),
         prune_stale=bool(sync_raw.get("prune_stale", True)),
+        graphrag=GraphRagSettings(
+            provider=os.getenv("GRAPH_RAG_PROVIDER", str(graphrag_raw.get("provider", defaults.provider))),
+            model=os.getenv("GRAPH_RAG_EMBEDDING_MODEL", str(graphrag_raw.get("model", defaults.model))),
+            dimensions=_env_int("GRAPH_RAG_DIMENSIONS", int(graphrag_raw.get("dimensions", defaults.dimensions))),
+            chunk_max_chars=int(graphrag_raw.get("chunk_max_chars", defaults.chunk_max_chars)),
+            chunk_overlap_chars=int(
+                graphrag_raw.get("chunk_overlap_chars", defaults.chunk_overlap_chars)
+            ),
+            include_extensions=include_extensions,
+            excluded_prefixes=excluded_prefixes,
+            batch_size=int(graphrag_raw.get("batch_size", defaults.batch_size)),
+            http_timeout_seconds=_env_int(
+                "GRAPH_RAG_HTTP_TIMEOUT_SECONDS",
+                int(graphrag_raw.get("http_timeout_seconds", defaults.http_timeout_seconds)),
+            ),
+        ),
     )
