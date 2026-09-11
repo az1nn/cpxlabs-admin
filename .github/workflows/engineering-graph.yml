@@ -272,7 +272,7 @@ jobs:
           print(f'Execution waves: {len(manifest.waves)}; conflicts: {len(manifest.conflicts)}')
           PY
 
-      - name: Dry-run one V3 allocation without mutating Git worktrees
+      - name: Validate V3 allocation or completed-spec state without mutating Git worktrees
         shell: bash
         run: |
           EXECUTION_TASK_ID="$(python - <<'PY'
@@ -281,16 +281,28 @@ jobs:
 
           manifest = load_execution_manifest(Path('/tmp/execution-manifest-1.json'))
           if manifest.cycles:
-              raise SystemExit('Cannot dry-run execution allocation with dependency cycles')
-          if not manifest.waves or not manifest.waves[0].tasks:
-              raise SystemExit('Execution manifest has no runnable task wave')
-          print(manifest.waves[0].tasks[0])
+              raise SystemExit('Cannot validate execution allocation with dependency cycles')
+
+          if manifest.waves and manifest.waves[0].tasks:
+              print(manifest.waves[0].tasks[0])
+          else:
+              if manifest.ready or manifest.blocked:
+                  raise SystemExit(
+                      'Execution manifest has no runnable waves but still contains unfinished READY/BLOCKED tasks'
+                  )
+              print('')
           PY
           )"
-          graph-engineering execution-prepare \
-            /tmp/execution-manifest-1.json \
-            --task "$EXECUTION_TASK_ID" \
-            --execution-root /tmp/execution-graph-dry-run \
-            --dry-run \
-            --json | tee /tmp/execution-dry-run.json
+
+          if [[ -n "$EXECUTION_TASK_ID" ]]; then
+            graph-engineering execution-prepare \
+              /tmp/execution-manifest-1.json \
+              --task "$EXECUTION_TASK_ID" \
+              --execution-root /tmp/execution-graph-dry-run \
+              --dry-run \
+              --json | tee /tmp/execution-dry-run.json
+          else
+            echo 'Execution spec has no runnable waves and no unfinished tasks; completed-state smoke passed.'
+          fi
+
           test ! -f /tmp/execution-graph-dry-run/leases.json
