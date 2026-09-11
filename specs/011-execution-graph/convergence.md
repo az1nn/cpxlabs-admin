@@ -73,9 +73,9 @@ A lease means local allocation only. Canonical Task state still changes only thr
 | SC-004 isolated worktrees | PASS | real temporary Git tests create/resume/remove one worktree per task |
 | SC-005 lease collisions | PASS | duplicate task/branch/path lease tests |
 | SC-006 revision drift | PASS | stale-manifest orchestrator test + runtime revision checks |
-| SC-007 fresh context/handoff | PASS | strict V2 freshness in orchestrator + canonical-path handoff test + ephemeral-Neo4j V3 dry-run smoke |
+| SC-007 fresh context/handoff | PASS | strict V2 freshness in orchestrator + canonical-path handoff test + ephemeral-Neo4j runnable-state dry-run smoke |
 | SC-008 safe release | PASS | real Git clean release and dirty worktree refusal/force tests |
-| SC-009 CI layers | PASS | Engineering Graph, Spec Kit and Product CI all passed on convergence anchor `dfdfbf24…` |
+| SC-009 CI layers | PASS | Engineering Graph, Spec Kit and Product CI passed on convergence anchor `dfdfbf24…`; final freeze candidate repeats all gates with completed-state-safe smoke |
 | SC-010 runtime independence | PASS | application graph-dependency guard remains green |
 | SC-011 documented lifecycle | PASS | quickstart, AGENTS, README, architecture and development guide |
 
@@ -112,7 +112,29 @@ Spec Kit integration/status and historical artifact-shape gates passed.
 - Storybook component/accessibility tests;
 - Playwright E2E.
 
-The freeze closeout changes only `tasks.md` / `convergence.md`. Those documentation-only commits must repeat the same three independent gates before PR #17 is marked Ready for Review.
+## Freeze closeout CI hardening
+
+Checking T068 completed the Spec 011 backlog. After the next graph sync, that correctly produced:
+
+```text
+ready = []
+blocked = []
+cycles = []
+waves = []
+```
+
+The initial documentation-only freeze HEAD exposed a CI-fixture assumption: the final V3 smoke always attempted to pick `manifest.waves[0]`, so a fully converged spec failed even though the execution manifest was correct.
+
+The final workflow now validates both legitimate states without changing product or V3 semantics:
+
+1. **Runnable state** — when a wave exists, select one task and execute `execution-prepare --dry-run`, then prove no active lease was written.
+2. **Completed state** — when no wave exists, require `ready == []`, `blocked == []` and no cycles, report the completed-state smoke as successful, and still prove no active lease file exists.
+
+Zero waves therefore succeeds only for a truly completed execution backlog. A manifest with no waves but unfinished READY/BLOCKED tasks still fails the CI gate.
+
+Real worktree mutation is not skipped by this completed-state path: the offline Engineering Graph suite in the same job creates, resumes and removes actual `git worktree` allocations inside temporary Git repositories, exercises active leases and dirty-worktree protection, and validates full prepare/release orchestration.
+
+This hardening is a CI-state invariant, not new V3 feature scope.
 
 ## Analyze/converge findings resolved
 
@@ -128,6 +150,10 @@ The implementation/docs distinguish safe resume from collision:
 - expected branch checked out elsewhere fails;
 - foreign filesystem path fails;
 - existing branch history is never reset silently.
+
+### Completed execution backlog
+
+A converged Spec legitimately has zero READY tasks and zero execution waves. CI validates that terminal state explicitly instead of preserving a fake pending task solely as a test fixture.
 
 No new implementation task remains from these findings.
 
@@ -146,4 +172,4 @@ The following are intentionally not convergence gaps:
 
 ## Freeze state
 
-`SPEC-011-EXECUTION-GRAPH` is converged and T001–T068 are complete. The branch is a freeze candidate. After the documentation-only closeout HEAD repeats **Engineering Graph + Spec Kit + Product CI** successfully, PR #17 may be marked Ready for Review. Any V4 work must start in a new Spec Kit feature branch and a new PR rather than expanding this frozen scope.
+`SPEC-011-EXECUTION-GRAPH` is converged and T001–T068 are complete. The branch is a freeze candidate. After the completed-state-safe closeout HEAD passes **Engineering Graph + Spec Kit + Product CI**, PR #17 may be marked Ready for Review. Any V4 work must start in a new Spec Kit feature branch and a new PR rather than expanding this frozen scope.
