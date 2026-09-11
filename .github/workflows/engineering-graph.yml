@@ -203,10 +203,10 @@ jobs:
           from pathlib import Path
 
           payload = json.loads(Path('/tmp/agent-context-ready-manifest.json').read_text())
-          entries = payload.get('entries')
+          tasks = payload.get('tasks')
           package_count = payload.get('packageCount')
-          if not isinstance(entries, list) or package_count != len(entries):
-              raise SystemExit('READY context manifest count does not match entries')
+          if not isinstance(tasks, list) or package_count != len(tasks):
+              raise SystemExit('READY context manifest count does not match tasks')
           print(f'READY package count: {package_count}')
           PY
 
