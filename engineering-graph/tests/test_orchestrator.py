@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
@@ -165,6 +166,15 @@ class OrchestratorTests(unittest.TestCase):
             self.assertTrue(Path(allocation.worktree_path).exists())
             self.assertTrue(Path(allocation.context_path).exists())
             self.assertTrue(Path(allocation.handoff_path).exists())
+
+            context_payload = json.loads(Path(allocation.context_path).read_text(encoding="utf-8"))
+            self.assertEqual(context_payload["freshness"], "current")
+            self.assertEqual(context_payload["sourceRevision"], revision)
+            handoff = Path(allocation.handoff_path).read_text(encoding="utf-8")
+            self.assertIn("specs/011-execution-graph/tasks.md", handoff)
+            self.assertIn("specs/011-execution-graph/spec.md", handoff)
+            self.assertIn(allocation.task_id, handoff)
+
             registry = load_registry(
                 state_root / "leases.json",
                 expected_repository="example/project",
