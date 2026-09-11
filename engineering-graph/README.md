@@ -1,10 +1,12 @@
 # Engineering Graph
 
-Repository-local Neo4j control plane for Spec-Driven and Agent-Driven engineering.
+Repository-local Neo4j control plane for Spec-Driven and Agent-Driven engineering, with bounded context, execution orchestration and GraphRAG retrieval.
 
 ## Authority boundary
 
-Git-backed artifacts are canonical. Neo4j is a rebuildable projection used for traceability, impact analysis, drift checks, bounded agent context and execution planning. Generated context packages, execution manifests and leases are disposable derived artifacts. No application runtime depends on this directory.
+Git-backed artifacts are canonical. Neo4j is a rebuildable deterministic projection used for traceability, impact analysis, drift checks, bounded agent context and execution planning. Generated ContextPackages, execution manifests, leases, GraphRAG indexes and GraphRAG results are disposable derived artifacts.
+
+No application runtime depends on this directory, Neo4j, an embedding provider or generated graph/retrieval state.
 
 ## Local setup
 
@@ -31,19 +33,19 @@ graph-engineering schema
 graph-engineering sync --json
 graph-engineering validate --json
 graph-engineering stats --json
-graph-engineering impact ADR-0019 --depth 3 --json
-graph-engineering ready --spec SPEC-011-EXECUTION-GRAPH --json
-graph-engineering conflicts --spec SPEC-011-EXECUTION-GRAPH --json
+graph-engineering impact ADR-0020 --depth 3 --json
+graph-engineering ready --spec SPEC-012-GRAPHRAG --json
+graph-engineering conflicts --spec SPEC-012-GRAPHRAG --json
 graph-engineering drift --json
-graph-engineering context SPEC-011-EXECUTION-GRAPH:T021 --format markdown
-graph-engineering waves --spec SPEC-011-EXECUTION-GRAPH --json
-graph-engineering execution-plan --spec SPEC-011-EXECUTION-GRAPH --agent codex --output .execution/manifest.json
+graph-engineering context SPEC-012-GRAPHRAG:T027 --format markdown
+graph-engineering waves --spec SPEC-012-GRAPHRAG --json
+graph-engineering execution-plan --spec SPEC-012-GRAPHRAG --agent codex --output .execution/manifest.json
+graph-engineering graphrag-build --provider hashing
+graph-engineering graphrag-query "GraphRAG architecture" --provider hashing --mode architecture
 graph-engineering reset --yes
 ```
 
-The five fundamental inspection surfaces are `impact`, `ready`, `conflicts`, `drift`, and `context`; `waves` and V3 Execution Graph build on the same explicit task DAG/artifact overlap.
-
-## V1 graph model
+## V1 deterministic graph model
 
 Seven node labels:
 
@@ -66,42 +68,23 @@ Eight relationship names:
 - `IMPLEMENTS`
 - `CHANGES`
 
-Node identity is `(repository, canonicalId)`. This prevents collisions when multiple repositories are projected into the same Neo4j database.
+Node identity is `(repository, canonicalId)`. The sync engine consumes explicit repository evidence only. Task phase order is not treated as dependency evidence; use explicit `depends: T001,T002` when dependency edges are required.
 
-## Authoring conventions
-
-The sync engine is intentionally deterministic. It consumes explicit repository evidence:
-
-- Spec Kit `spec.md`, `plan.md`, `tasks.md`;
-- stable `FR-###`, `SC-###`, `T###` identifiers;
-- ADR filenames/explicit references;
-- repository paths mentioned in task/spec metadata;
-- Git revision and changed files;
-- pull-request event metadata when available;
-- optional YAML frontmatter.
-
-Task phase order is not treated as a dependency. Add explicit `depends: T001,T002` evidence when dependency edges are required.
+GraphRAG does not add labels or relationship types to this vocabulary.
 
 ## V2 Agent Context Graph
 
-V2 turns the bounded Context Builder into a revision-aware package contract that can be consumed consistently by different coding agents.
-
-### Generate one task package
+Generate one task package:
 
 ```bash
-graph-engineering context-batch \
-  --task SPEC-011-EXECUTION-GRAPH:T021
+graph-engineering context-batch --task SPEC-012-GRAPHRAG:T027
 ```
 
-### Generate all READY packages for a spec
+Generate all READY packages for a spec:
 
 ```bash
-graph-engineering context-batch \
-  --spec SPEC-011-EXECUTION-GRAPH \
-  --json
+graph-engineering context-batch --spec SPEC-012-GRAPHRAG --json
 ```
-
-READY mode excludes BLOCKED tasks. Use explicit `--task` only when you intentionally need a specific task package.
 
 Each selected task receives:
 
@@ -112,28 +95,20 @@ codex.md       Codex-oriented handoff
 claude.md      Claude Code-oriented handoff
 ```
 
-A top-level `manifest.json` records the selected tasks, source revision and package-relative paths.
-
-### Validate freshness before implementation
+Validate freshness immediately before implementation:
 
 ```bash
-graph-engineering context-validate \
-  context-packages/.../context.json \
-  --strict
+graph-engineering context-validate context-packages/.../context.json --strict
 ```
 
-Strict mode fails if the package revision does not equal current Git HEAD or HEAD cannot be resolved. Non-strict mode can be used to inspect stale packages without treating them as current context.
-
-### Render an adapter from an existing package
+Adapters are pure renderers:
 
 ```bash
 graph-engineering context-adapt context.json --agent codex
 graph-engineering context-adapt context.json --agent claude
 ```
 
-Adapters are pure renderers. They never query Neo4j and never become a separate source of truth.
-
-### Context budgets
+Default budgets:
 
 ```yaml
 context:
@@ -142,134 +117,166 @@ context:
   max_bytes: 65536
 ```
 
-Node/depth limits constrain graph admission. `max_bytes` provides a deterministic final semantic JSON budget. When evidence must be omitted, the package reports `truncatedNodes`, `renderedBytes` and `truncated=true`.
-
-### Package lifecycle
-
-```text
-sync
- ↓
-validate graph
- ↓
-generate package
- ↓
-strict freshness validation
- ↓
-agent opens canonical files
- ↓
-implementation/tests
- ↓
-discard/regenerate when revision changes
-```
-
-Generated packages live under `engineering-graph/context-packages/` by default and are ignored by Git.
-
-## Context package authority
-
-The package is navigation context only. Agents must open/edit the canonical paths named by the package rather than editing generated files or attempting to modify Neo4j.
-
-The portable JSON package carries repository, source revision, task identity, budgets, summary, linked graph evidence and provenance. Markdown/agent handoffs are renderings of the same package.
-
-## Execution waves
-
-`waves` computes a topological task plan from explicit `DEPENDS_ON` relationships and prevents tasks sharing implementation/test artifacts from occupying the same wave. It never replaces review, CI, branch ownership or worktree discipline.
+Generated packages are ignored by Git and must be regenerated when repository/graph evidence changes.
 
 ## V3 Execution Graph
 
-V3 binds execution planning to one Git revision and allocates isolated Git worktrees without changing canonical task state.
-
-### Build a revision-bound manifest
+Build a revision-bound execution manifest:
 
 ```bash
 graph-engineering execution-plan \
-  --spec SPEC-011-EXECUTION-GRAPH \
+  --spec SPEC-012-GRAPHRAG \
   --agent codex \
-  --output .execution/manifests/spec-011.json
+  --output .execution/manifests/spec-012.json
 ```
 
-The manifest carries READY/BLOCKED tasks, cycles, shared-artifact conflicts and deterministic waves. Planning fails if projected task revisions are stale relative to current Git HEAD.
-
-### Dry-run a wave
+Dry-run or prepare one conflict-safe wave:
 
 ```bash
-graph-engineering execution-prepare \
-  .execution/manifests/spec-011.json \
-  --wave 1 \
-  --dry-run \
-  --json
+graph-engineering execution-prepare .execution/manifests/spec-012.json --wave 1 --dry-run
+graph-engineering execution-prepare .execution/manifests/spec-012.json --wave 1
 ```
 
-Dry-run performs graph/context reads and freshness checks but creates no worktree and no active lease.
-
-### Prepare a wave
-
-```bash
-graph-engineering execution-prepare \
-  .execution/manifests/spec-011.json \
-  --wave 1
-```
-
-For every selected task V3:
-
-1. validates manifest revision/repository;
-2. confirms selection stays inside one conflict-safe wave;
-3. generates a fresh V2 ContextPackage;
-4. creates/resumes deterministic `exec/<task-safe>` worktree state;
-5. writes the selected Codex/Claude handoff;
-6. acquires a local active lease.
-
-Default derived state:
-
-```text
-engineering-graph/.execution/
-├── leases.json
-├── manifests/
-├── contexts/
-└── worktrees/
-```
-
-The entire root is Git-ignored. Dirty worktree contents are user data and are never considered disposable cleanup state.
-
-### Inspect / release
+Inspect/release allocations:
 
 ```bash
 graph-engineering execution-status
-graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T021
-graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T021 --remove-worktree
+graph-engineering execution-release SPEC-012-GRAPHRAG:T027
+graph-engineering execution-release SPEC-012-GRAPHRAG:T027 --remove-worktree
 ```
 
-Removing a dirty worktree fails unless explicit `--force` is supplied. Releasing a lease never changes canonical Task status.
+V3 creates/resumes deterministic worktrees and local derived leases only after revision, wave and V2 ContextPackage freshness checks. Dirty worktree contents are user data and are not removed unless explicit destructive `--force` is supplied.
 
-### Execution boundary
+V3 never commits, pushes, creates/merges PRs or changes canonical Task status automatically.
 
-V3 does not automatically commit, push, create/merge PRs, supervise long-running coding-agent processes or infer graph truth. A future runner can consume `ExecutionAllocation` without changing the V1/V2/V3 contracts.
+## V4 GraphRAG
+
+V4 adds semantic repository discovery followed by read-only deterministic graph expansion.
+
+```text
+Git-tracked repository content
+        ↓
+deterministic chunks
+        ↓
+derived vector index
+        ↓
+semantic query hits
+        ↓
+sourcePath/path graph anchors
+        ↓
+existing Neo4j relationships only
+```
+
+### Build an offline deterministic index
+
+```bash
+graph-engineering graphrag-build \
+  --provider hashing \
+  --output .graphrag/index.json
+```
+
+`hashing` is a deterministic zero-network retrieval surrogate for CI/offline mechanics. It is not equivalent to a learned semantic embedding model.
+
+### Validate/index status
+
+```bash
+graph-engineering graphrag-status --provider hashing
+graph-engineering graphrag-validate .graphrag/index.json --provider hashing --strict
+```
+
+Strict validation checks repository identity, Git revision, provider/model/dimensions and corpus/chunk configuration.
+
+### Query and expand the graph
+
+```bash
+graph-engineering graphrag-query \
+  "why does GraphRAG remain outside canonical graph authority?" \
+  --index .graphrag/index.json \
+  --provider hashing \
+  --mode architecture \
+  --top-k 8 \
+  --depth 2 \
+  --max-nodes 80
+```
+
+Result evidence is deliberately separated into:
+
+- `semanticHits`: vector-ranked source chunks;
+- `anchors`: existing deterministic graph nodes resolved from hit paths;
+- `graphEvidence`: bounded traversal over relationships already present in Neo4j.
+
+Semantic score and graph distance are not collapsed into an opaque authority score.
+
+### Learned embeddings through HTTP
+
+```bash
+export GRAPH_RAG_EMBEDDING_URL='https://embedding-service.example/v1/embeddings'
+export GRAPH_RAG_EMBEDDING_MODEL='your-model'
+export GRAPH_RAG_EMBEDDING_API_KEY='...'
+export GRAPH_RAG_DIMENSIONS='1536'
+
+graph-engineering graphrag-build --provider http
+graph-engineering graphrag-validate --provider http --strict
+graph-engineering graphrag-query "authorization authority" --provider http --mode architecture
+```
+
+The HTTP boundary avoids a mandatory provider SDK. Credentials are never stored in the semantic index.
+
+### Corpus safety
+
+Only `git ls-files` paths can enter the corpus. The configured extension and excluded-prefix rules are applied afterward. Untracked local files and secrets cannot be indexed merely because they exist on disk.
+
+Default generated index state:
+
+```text
+engineering-graph/.graphrag/
+└── index.json
+```
+
+The directory is ignored by Git and disposable.
+
+### GraphRAG authority
+
+GraphRAG never persists `SIMILAR_TO`, `RELATED_TO`, inferred `DEPENDS_ON` or other semantic edges. It uses semantic similarity to find seeds and then traverses only the canonical deterministic graph projection.
+
+See `docs/architecture/GRAPHRAG.md` and ADR-0020.
 
 ## Drift versus validation
 
-`drift` exposes raw deterministic invariant evidence from the checked-in Cypher query. `validate` applies the repository's configured severity policy (`error`, `warning`, `off`) plus structural checks such as task dependency cycles. Use `drift` for inspection and `validate` as the CI decision surface.
+`drift` exposes raw deterministic invariant evidence. `validate` applies configured severity policy (`error`, `warning`, `off`) plus structural checks. Use `drift` for inspection and `validate` as the CI decision surface.
 
 ## CI
 
-`.github/workflows/engineering-graph.yml` starts an ephemeral Neo4j instance, installs this package, runs unit/integration tests, validates schema definitions, performs two full syncs, executes the validator and smoke-tests graph queries, Agent Context Graph package generation/validation/adapters and V3 execution-manifest planning.
+`.github/workflows/engineering-graph.yml` runs:
+
+1. Python unit/integration tests, including real temporary Git worktrees and GraphRAG corpus/provider/index tests;
+2. application-runtime dependency isolation guard;
+3. ephemeral Neo4j schema/sync/idempotency/validation;
+4. V1 fundamental query smokes;
+5. V2 ContextPackage freshness/adapters/reproducibility/disposal;
+6. V3 ExecutionManifest/wave/completed-spec smokes;
+7. V4 GraphRAG build/freshness/reproducibility/retrieval/graph-expansion smokes;
+8. before/after graph stats comparison proving V4 query is read-only.
 
 Existing application CI and Spec Kit CI remain independent and authoritative for their domains.
 
 ## Rebuild / recovery
 
-The graph and generated context/execution metadata are disposable:
+Derived graph/context/execution/retrieval metadata is disposable:
 
 ```bash
-rm -rf context-packages/* .execution/contexts .execution/manifests .execution/leases.json
+rm -rf context-packages/* .graphrag .execution/contexts .execution/manifests .execution/leases.json
 graph-engineering reset --yes
 graph-engineering schema
 graph-engineering sync
 graph-engineering validate
+graph-engineering graphrag-build --provider hashing
 ```
 
 Do not blindly delete `.execution/worktrees/`: inspect `execution-status`/Git worktree state first because those directories may contain uncommitted user work.
 
-No canonical knowledge is lost by deleting the Neo4j projection or clean generated metadata.
+No canonical knowledge is lost by deleting the Neo4j projection, ContextPackages, clean execution metadata or GraphRAG index.
 
 ## Deliberately deferred
 
-V3 does not include embeddings, GraphRAG, AI-created authoritative relationships, distributed multi-host locking, automatic coding-agent supervision, automatic task-status mutation, autonomous commit/push/PR creation or merging. Those capabilities require separate specs and MRs.
+V4 still does not include semantic similarity as canonical graph edges, LLM answer synthesis, AI-created authoritative requirements/ADRs/tasks, a mandatory hosted vector database, cross-repository global knowledge graphs, distributed multi-host scheduling, automatic coding-agent supervision, automatic task-status mutation, or autonomous commit/push/PR creation/merge. Those require separate specs/ADRs/PRs.
