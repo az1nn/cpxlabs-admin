@@ -11,6 +11,8 @@ from engineering_graph.context_batch import generate_context_packages, ready_tas
 
 
 class FakeStore:
+    source_revision = "abc123"
+
     def query_file(self, filename: str, parameters: dict[str, object]):
         if filename == "ready-tasks.cypher":
             return [
@@ -22,14 +24,17 @@ class FakeStore:
             task_id = str(parameters["taskId"])
             return [
                 {
+                    "sourceRevision": self.source_revision,
                     "task": {
                         "canonicalId": task_id,
                         "title": f"Task {task_id}",
                         "sourcePath": "specs/010-example/tasks.md",
+                        "sourceRevision": self.source_revision,
                     },
                     "spec": {
                         "canonicalId": "SPEC-010-EXAMPLE",
                         "sourcePath": "specs/010-example/spec.md",
+                        "sourceRevision": self.source_revision,
                     },
                     "requirements": [],
                     "adrs": [],
@@ -113,6 +118,7 @@ class ContextBatchTests(unittest.TestCase):
                 self.assertTrue((directory / "claude.md").exists())
                 payload = json.loads((directory / "context.json").read_text(encoding="utf-8"))
                 self.assertEqual(payload["sourceRevision"], "abc123")
+                self.assertEqual(payload["freshness"], "current")
                 self.assertEqual(payload["packageVersion"], "1")
 
     @patch("engineering_graph.context.current_git_revision", return_value="abc123")
