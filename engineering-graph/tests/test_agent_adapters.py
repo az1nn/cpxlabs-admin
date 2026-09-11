@@ -10,17 +10,22 @@ from engineering_graph.context import build_context
 
 
 class FakeStore:
+    source_revision = "abc123"
+
     def query_file(self, filename: str, parameters: dict[str, object]):
         return [
             {
+                "sourceRevision": self.source_revision,
                 "task": {
                     "canonicalId": "SPEC-010-EXAMPLE:T001",
                     "title": "Implement package",
                     "sourcePath": "specs/010-example/tasks.md",
+                    "sourceRevision": self.source_revision,
                 },
                 "spec": {
                     "canonicalId": "SPEC-010-EXAMPLE",
                     "sourcePath": "specs/010-example/spec.md",
+                    "sourceRevision": self.source_revision,
                 },
                 "requirements": [],
                 "adrs": [
