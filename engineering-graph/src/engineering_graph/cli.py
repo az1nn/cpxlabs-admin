@@ -11,6 +11,13 @@ from .config import ContextBudget, load_settings
 from .context import build_context, write_context
 from .context_batch import generate_context_packages
 from .context_validation import inspect_freshness, load_context_package
+from .execution import load_execution_manifest, write_execution_manifest
+from .orchestrator import (
+    build_manifest_from_store,
+    execution_status,
+    prepare_execution,
+    release_execution,
+)
 from .planner import build_execution_plan, load_tasks_from_store
 from .schema import validate_schema_definitions
 from .store import GraphStore
@@ -288,6 +295,109 @@ def command_waves(args: argparse.Namespace) -> int:
     return 1 if plan.cycles else 0
 
 
+def command_execution_plan(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    try:
+        manifest = build_manifest_from_store(
+            store,
+            settings,
+            spec_id=args.spec,
+            agent=args.agent,
+        )
+    finally:
+        store.close()
+
+    if args.output:
+        destination = Path(args.output).resolve()
+        write_execution_manifest(manifest, destination)
+        if not args.json:
+            print(f"Execution manifest written to {destination}")
+    if args.json:
+        print(_json(manifest.to_dict()))
+    elif not args.output:
+        print(f"Repository: {manifest.repository}")
+        print(f"Source revision: {manifest.source_revision}")
+        print("READY:", ", ".join(manifest.ready) or "none")
+        for task, blockers in manifest.blocked:
+            print(f"BLOCKED {task}: {', '.join(blockers)}")
+        for cycle in manifest.cycles:
+            print(f"CYCLE: {' -> '.join(cycle)}", file=sys.stderr)
+        for conflict in manifest.conflicts:
+            print(f"CONFLICT {conflict.left} <> {conflict.right}: {', '.join(conflict.artifacts)}")
+        for wave in manifest.waves:
+            print(f"WAVE {wave.index}: {', '.join(wave.tasks)}")
+    return 1 if manifest.cycles else 0
+
+
+def command_execution_prepare(args: argparse.Namespace) -> int:
+    settings, store = _with_store(args)
+    manifest = load_execution_manifest(Path(args.manifest).resolve())
+    try:
+        result = prepare_execution(
+            store,
+            settings,
+            manifest,
+            wave=args.wave,
+            task_ids=args.task or (),
+            root_override=Path(args.execution_root).resolve() if args.execution_root else None,
+            dry_run=args.dry_run,
+        )
+    finally:
+        store.close()
+
+    payload = result.to_dict()
+    if args.json:
+        print(_json(payload))
+    else:
+        action = "Planned" if result.dry_run else "Prepared"
+        print(f"{action} {payload['allocationCount']} execution allocation(s)")
+        for allocation in result.allocations:
+            print(
+                f"{allocation.task_id}: branch={allocation.branch} "
+                f"worktree={allocation.worktree_path} handoff={allocation.handoff_path}"
+            )
+    return 0
+
+
+def command_execution_status(args: argparse.Namespace) -> int:
+    settings = _settings(args)
+    payload = execution_status(
+        settings,
+        root_override=Path(args.execution_root).resolve() if args.execution_root else None,
+    )
+    if args.json:
+        print(_json(payload))
+    else:
+        print(f"Active execution leases: {payload['activeCount']}")
+        for lease in payload["active"]:
+            dirty = lease.get("dirty")
+            dirty_text = "unknown" if dirty is None else ("dirty" if dirty else "clean")
+            print(
+                f"{lease['taskId']}: {lease['branch']} @ {lease['worktreePath']} "
+                f"registered={lease['worktreeRegistered']} state={dirty_text}"
+            )
+    return 0
+
+
+def command_execution_release(args: argparse.Namespace) -> int:
+    settings = _settings(args)
+    allocation = release_execution(
+        settings,
+        args.task_id,
+        root_override=Path(args.execution_root).resolve() if args.execution_root else None,
+        remove=args.remove_worktree,
+        force=args.force,
+    )
+    if args.json:
+        print(_json(allocation.to_dict()))
+    else:
+        print(
+            f"Released {allocation.task_id}: branch={allocation.branch} "
+            f"worktree={allocation.worktree_path}"
+        )
+    return 0
+
+
 def command_stats(args: argparse.Namespace) -> int:
     settings, store = _with_store(args)
     try:
@@ -402,6 +512,47 @@ def build_parser() -> argparse.ArgumentParser:
     waves.add_argument("--spec")
     waves.add_argument("--json", action="store_true")
     waves.set_defaults(func=command_waves)
+
+    execution_plan = subparsers.add_parser(
+        "execution-plan",
+        help="Build a revision-bound Execution Graph manifest",
+    )
+    execution_plan.add_argument("--spec")
+    execution_plan.add_argument("--agent", choices=SUPPORTED_AGENTS, default="codex")
+    execution_plan.add_argument("--output")
+    execution_plan.add_argument("--json", action="store_true")
+    execution_plan.set_defaults(func=command_execution_plan)
+
+    execution_prepare = subparsers.add_parser(
+        "execution-prepare",
+        help="Prepare one safe execution wave/task set into Git worktrees",
+    )
+    execution_prepare.add_argument("manifest")
+    execution_prepare.add_argument("--wave", type=int)
+    execution_prepare.add_argument("--task", action="append", default=[])
+    execution_prepare.add_argument("--execution-root")
+    execution_prepare.add_argument("--dry-run", action="store_true")
+    execution_prepare.add_argument("--json", action="store_true")
+    execution_prepare.set_defaults(func=command_execution_prepare)
+
+    execution_status_parser = subparsers.add_parser(
+        "execution-status",
+        help="Inspect active local Execution Graph leases/worktrees",
+    )
+    execution_status_parser.add_argument("--execution-root")
+    execution_status_parser.add_argument("--json", action="store_true")
+    execution_status_parser.set_defaults(func=command_execution_status)
+
+    execution_release = subparsers.add_parser(
+        "execution-release",
+        help="Release a task lease and optionally remove its generated worktree",
+    )
+    execution_release.add_argument("task_id")
+    execution_release.add_argument("--execution-root")
+    execution_release.add_argument("--remove-worktree", action="store_true")
+    execution_release.add_argument("--force", action="store_true")
+    execution_release.add_argument("--json", action="store_true")
+    execution_release.set_defaults(func=command_execution_release)
 
     stats = subparsers.add_parser("stats", help="Show projected node/relationship counts")
     stats.add_argument("--json", action="store_true")
