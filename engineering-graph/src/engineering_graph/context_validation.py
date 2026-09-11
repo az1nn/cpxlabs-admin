@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import current_git_revision
-from .context import ContextPackage, PACKAGE_VERSION
+from .context import ContextPackage, FRESHNESS_VALUES, PACKAGE_VERSION
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +54,19 @@ def load_context_package(path: Path) -> ContextPackage:
     return package
 
 
+def _included_nodes(package: ContextPackage) -> int:
+    return (
+        1
+        + (1 if package.spec else 0)
+        + len(package.requirements)
+        + len(package.adrs)
+        + len(package.dependencies)
+        + len(package.code_artifacts)
+        + len(package.tests)
+        + len(package.pull_requests)
+    )
+
+
 def _validate_contract(package: ContextPackage) -> None:
     if package.package_version != PACKAGE_VERSION:
         raise ValueError(f"Unsupported context package version: {package.package_version}")
@@ -61,6 +74,10 @@ def _validate_contract(package: ContextPackage) -> None:
         raise ValueError("Context package repository is required")
     if not package.source_revision.strip():
         raise ValueError("Context package sourceRevision is required")
+    if not package.generated_at.strip():
+        raise ValueError("Context package generatedAt is required")
+    if package.freshness not in FRESHNESS_VALUES:
+        raise ValueError(f"Unsupported context package freshness: {package.freshness}")
     if not str(package.task.get("canonicalId") or "").strip():
         raise ValueError("Context package task canonicalId is required")
     if package.budget.max_depth < 1 or package.budget.max_depth > 5:
@@ -71,8 +88,27 @@ def _validate_contract(package: ContextPackage) -> None:
         raise ValueError("Context package maxBytes is outside the supported range")
     if package.summary.included_nodes < 1:
         raise ValueError("Context package must include at least the Task node")
-    if package.summary.rendered_bytes < 1:
-        raise ValueError("Context package renderedBytes must be positive")
+    if package.summary.truncated_nodes < 0:
+        raise ValueError("Context package truncatedNodes cannot be negative")
+
+    actual_included = _included_nodes(package)
+    if package.summary.included_nodes != actual_included:
+        raise ValueError(
+            f"Context package includedNodes mismatch: declared={package.summary.included_nodes} actual={actual_included}"
+        )
+    expected_truncated = package.summary.truncated_nodes > 0
+    if package.summary.truncated != expected_truncated:
+        raise ValueError("Context package truncated flag does not match truncatedNodes")
+
+    actual_bytes = package.semantic_bytes()
+    if package.summary.rendered_bytes != actual_bytes:
+        raise ValueError(
+            f"Context package renderedBytes mismatch: declared={package.summary.rendered_bytes} actual={actual_bytes}"
+        )
+    if actual_bytes > package.budget.max_bytes:
+        raise ValueError(
+            f"Context package exceeds maxBytes: rendered={actual_bytes} max={package.budget.max_bytes}"
+        )
 
 
 def inspect_freshness(
@@ -83,7 +119,7 @@ def inspect_freshness(
     strict: bool = False,
 ) -> FreshnessReport:
     current = current_git_revision(repo_root)
-    if current is None:
+    if current is None or package.source_revision == "unknown":
         status = "unknown"
     elif package.source_revision == current:
         status = "current"
@@ -98,12 +134,12 @@ def inspect_freshness(
         )
     if status == "stale":
         messages.append(
-            f"Package revision {package.source_revision} differs from current HEAD {current}"
+            f"Package graph revision {package.source_revision} differs from current HEAD {current}"
         )
     elif status == "unknown":
-        messages.append("Current Git HEAD could not be resolved")
+        messages.append("Graph projection revision or current Git HEAD could not be verified")
     else:
-        messages.append("Package revision matches current Git HEAD")
+        messages.append("Package graph revision matches current Git HEAD")
 
     return FreshnessReport(
         status=status,
