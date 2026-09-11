@@ -12,6 +12,13 @@ from .context import build_context, write_context
 from .context_batch import generate_context_packages
 from .context_validation import inspect_freshness, load_context_package
 from .execution import load_execution_manifest, write_execution_manifest
+from .graphrag_cli import (
+    add_provider_arguments,
+    command_graphrag_build,
+    command_graphrag_query,
+    command_graphrag_status,
+    command_graphrag_validate,
+)
 from .orchestrator import (
     build_manifest_from_store,
     execution_status,
@@ -553,6 +560,50 @@ def build_parser() -> argparse.ArgumentParser:
     execution_release.add_argument("--force", action="store_true")
     execution_release.add_argument("--json", action="store_true")
     execution_release.set_defaults(func=command_execution_release)
+
+    graphrag_build = subparsers.add_parser(
+        "graphrag-build",
+        help="Build a revision-bound derived semantic retrieval index",
+    )
+    add_provider_arguments(graphrag_build)
+    graphrag_build.add_argument("--output")
+    graphrag_build.add_argument("--json", action="store_true")
+    graphrag_build.set_defaults(func=command_graphrag_build)
+
+    graphrag_query = subparsers.add_parser(
+        "graphrag-query",
+        help="Retrieve semantic seeds and expand them through deterministic graph evidence",
+    )
+    graphrag_query.add_argument("query")
+    graphrag_query.add_argument("--index")
+    add_provider_arguments(graphrag_query)
+    graphrag_query.add_argument("--top-k", type=int, default=8)
+    graphrag_query.add_argument("--min-score", type=float, default=0.0)
+    graphrag_query.add_argument("--depth", type=int, default=2)
+    graphrag_query.add_argument("--max-nodes", type=int, default=80)
+    graphrag_query.add_argument("--mode", choices=("all", "architecture"), default="all")
+    graphrag_query.add_argument("--allow-stale", action="store_true")
+    graphrag_query.add_argument("--json", action="store_true")
+    graphrag_query.set_defaults(func=command_graphrag_query)
+
+    graphrag_validate = subparsers.add_parser(
+        "graphrag-validate",
+        help="Validate GraphRAG index schema/hash/provider/revision freshness",
+    )
+    graphrag_validate.add_argument("index", nargs="?")
+    add_provider_arguments(graphrag_validate)
+    graphrag_validate.add_argument("--strict", action="store_true")
+    graphrag_validate.add_argument("--json", action="store_true")
+    graphrag_validate.set_defaults(func=command_graphrag_validate)
+
+    graphrag_status = subparsers.add_parser(
+        "graphrag-status",
+        help="Inspect generated GraphRAG index identity and freshness",
+    )
+    graphrag_status.add_argument("--index")
+    add_provider_arguments(graphrag_status)
+    graphrag_status.add_argument("--json", action="store_true")
+    graphrag_status.set_defaults(func=command_graphrag_status)
 
     stats = subparsers.add_parser("stats", help="Show projected node/relationship counts")
     stats.add_argument("--json", action="store_true")
