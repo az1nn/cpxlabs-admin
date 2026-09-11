@@ -85,7 +85,7 @@
 - [x] T056 Verify app/packages remain independent of graph tooling
 - [x] T057 Run `$speckit-converge` against SC-001..SC-010 and append only real uncovered work
 - [x] T058 Retarget PR to `master` after #15 merges and rerun all gates
-- [ ] T059 Freeze PR only after Engineering Graph + Spec Kit + product CI are green on final HEAD
+- [x] T059 Freeze PR only after Engineering Graph + Spec Kit + product CI are green on final HEAD
 
 ## Dependencies
 
