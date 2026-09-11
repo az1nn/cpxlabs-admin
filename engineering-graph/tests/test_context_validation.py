@@ -12,11 +12,22 @@ from engineering_graph.context_validation import inspect_freshness, load_context
 
 
 class FakeStore:
+    source_revision = "rev-a"
+
     def query_file(self, filename: str, parameters: dict[str, object]):
         return [
             {
-                "task": {"canonicalId": "SPEC-010-EXAMPLE:T001", "title": "Implement"},
-                "spec": {"canonicalId": "SPEC-010-EXAMPLE", "title": "Example"},
+                "sourceRevision": self.source_revision,
+                "task": {
+                    "canonicalId": "SPEC-010-EXAMPLE:T001",
+                    "title": "Implement",
+                    "sourceRevision": self.source_revision,
+                },
+                "spec": {
+                    "canonicalId": "SPEC-010-EXAMPLE",
+                    "title": "Example",
+                    "sourceRevision": self.source_revision,
+                },
                 "requirements": [],
                 "adrs": [],
                 "dependencies": [],
@@ -73,6 +84,7 @@ class ContextValidationTests(unittest.TestCase):
         )
         self.assertEqual(report.status, "stale")
         self.assertFalse(report.valid)
+        self.assertIn("graph revision", report.messages[0].lower())
 
     @patch("engineering_graph.context_validation.current_git_revision", return_value=None)
     def test_non_strict_unknown_revision_is_reported_without_failure(self, _revision) -> None:
@@ -98,6 +110,26 @@ class ContextValidationTests(unittest.TestCase):
             path = Path(temp) / "context.json"
             path.write_text(json.dumps({"packageVersion": "1"}), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "missing required fields"):
+                load_context_package(path)
+
+    def test_loader_rejects_tampered_summary(self) -> None:
+        package = self.package()
+        payload = package.to_dict()
+        payload["summary"]["includedNodes"] = 999
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "context.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "includedNodes mismatch"):
+                load_context_package(path)
+
+    def test_loader_rejects_tampered_rendered_bytes(self) -> None:
+        package = self.package()
+        payload = package.to_dict()
+        payload["summary"]["renderedBytes"] += 1
+        with TemporaryDirectory() as temp:
+            path = Path(temp) / "context.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "renderedBytes mismatch"):
                 load_context_package(path)
 
     def test_loader_round_trip(self) -> None:
