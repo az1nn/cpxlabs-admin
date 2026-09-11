@@ -89,10 +89,10 @@
 - [x] T067 Assert Neo4j seed resolution and bounded expansion.
 - [x] T068 Assert GraphRAG did not introduce new canonical node/relationship vocabulary.
 - [x] T069 Preserve application runtime dependency isolation gate.
-- [ ] T070 Run Spec Kit validation on final HEAD.
-- [ ] T071 Run Engineering Graph workflow on final HEAD.
-- [ ] T072 Run Product CI on final HEAD.
+- [x] T070 Run Spec Kit validation on final closeout candidate HEAD.
+- [x] T071 Run Engineering Graph workflow on final closeout candidate HEAD.
+- [x] T072 Run Product CI on final closeout candidate HEAD.
 - [x] T073 Create `analysis.md` mapping FR/SC to implementation evidence.
 - [x] T074 Create `convergence.md` with final authority/freshness validation.
 - [x] T075 Reconcile all task statuses against actual implementation evidence.
-- [ ] T076 Freeze V4 only after Spec Kit + Engineering Graph + Product CI are green on the same final HEAD.
+- [x] T076 Freeze V4 after Spec Kit + Engineering Graph + Product CI are green on the same closeout candidate; repeat all gates on this documentation-only freeze HEAD before PR readiness.
