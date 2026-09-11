@@ -54,6 +54,18 @@ A stale package is not current implementation context. Never bypass strict fresh
 
 `context-batch --spec` selects READY tasks only. BLOCKED tasks require explicit task selection; package generation is not authority to ignore dependency state.
 
+## Conversation Context Handoffs
+
+AI-assisted work must follow `docs/ai/context-handoff.md`.
+
+Continuously assess whether the current conversation remains a coherent working context. Do not display context-health status on every response and do not recommend a new chat merely because the conversation is long.
+
+Prefer semantic handoff boundaries: completed feature/PR group, Spec Kit phase, milestone, architecture freeze, workstream change, or a point where stale/superseded conversation state materially increases implementation risk.
+
+When the policy reaches RED, explicitly recommend a new chat and generate a `SESSION_HANDOFF.md` from `docs/ai/session-handoff-template.md`. The handoff must summarize final state, identify superseded decisions, point to canonical Git-backed artifacts, record freshness risks, and provide one exact `Next Action`.
+
+A new chat must validate repository freshness and re-read the bounded canonical artifacts it needs. `SESSION_HANDOFF.md`, chat history, ContextPackages, graph projections, and execution manifests are derived context and never override Git-backed source of truth.
+
 ## Spec Kit Commands
 
 Codex is the versioned default integration and uses native skills:
