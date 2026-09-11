@@ -21,17 +21,17 @@ V3 should compose these contracts rather than invent a second planner or retriev
 
 Relevant operational rules:
 
-1. `git worktree add <path> -b <branch> <start-point>` creates a new branch and worktree atomically enough for local orchestration.
-2. A branch already checked out in another worktree cannot normally be checked out again; V3 should treat that as an allocation collision.
+1. `git worktree add <path> -b <branch> <start-point>` creates a new branch and worktree for a fresh allocation.
+2. A branch already checked out in another worktree cannot normally be checked out again; V3 treats that as an allocation collision.
 3. Worktree removal must not destroy dirty/untracked user work silently.
 4. `git worktree list --porcelain` provides machine-readable existing allocation evidence.
 5. Worktrees are local operational state and must not become canonical Spec/Task status.
 
 ## Branch naming
 
-Canonical task IDs can contain `:` and other separators. V3 should normalize them into a stable branch suffix.
+Canonical task IDs can contain `:` and other separators. V3 normalizes them into a stable branch suffix.
 
-Proposed default:
+Default:
 
 ```text
 exec/<lowercase-safe-task-id>
@@ -44,7 +44,14 @@ SPEC-011-EXECUTION-GRAPH:T021
 → exec/spec-011-execution-graph-t021
 ```
 
-The allocator must detect an existing branch and fail closed instead of silently resetting/reusing it. A future explicit resume flow can attach to an existing allocation.
+The allocator never silently resets an existing task branch. Existing deterministic task state follows explicit resume/collision rules:
+
+- if the exact expected worktree path is already registered on the exact expected task branch, it can be resumed without reset;
+- if the expected branch is checked out at a different path, preparation fails closed;
+- if the expected path exists outside Git's worktree registry, preparation fails closed;
+- if the deterministic branch exists but is not checked out, Git may attach it to the expected worktree path without rewriting its history.
+
+This supports intentional continuation of prior task work while refusing to claim unrelated filesystem/worktree state.
 
 ## Worktree placement
 
@@ -54,16 +61,17 @@ Default derived root:
 engineering-graph/.execution/worktrees/
 ```
 
-Lease/manifest state:
+Lease/manifest/context state:
 
 ```text
 engineering-graph/.execution/
 ├── leases.json
 ├── manifests/
+├── contexts/
 └── worktrees/
 ```
 
-This root must be Git-ignored. The path is engineering-only and disposable except that dirty content inside a worktree is user data and cannot be treated as disposable.
+This root must be Git-ignored. The metadata is engineering-only and disposable except that dirty/uncommitted content inside a worktree is user data and cannot be treated as disposable.
 
 ## Lease model
 
@@ -81,14 +89,16 @@ Lease identity:
 - status;
 - created/updated timestamps.
 
-The registry should be written via temporary-file replacement to reduce partial-write risk. Malformed registry JSON must fail closed.
+The registry is written via temporary-file replacement to reduce partial-write risk. Malformed registry JSON fails closed.
+
+Dry-run allocations use `planned` in returned metadata but do not become active persisted leases. Persisted execution ownership uses `active`; release records `released` history.
 
 ## Planning vs mutation boundary
 
-V3 should separate a pure planning command from worktree mutation:
+V3 separates a pure planning command from worktree mutation:
 
 ```text
-execution-plan   → no Git mutation
+execution-plan    → no Git worktree/lease mutation
 execution-prepare → branch/worktree + context/handoff + lease
 execution-release → lease release + optional safe worktree removal
 execution-status  → inspect local derived allocations
@@ -98,15 +108,15 @@ This keeps reviewable deterministic evidence before any filesystem/Git mutation.
 
 ## Source revision race
 
-An execution manifest is valid only for the Git revision from which it was generated. Preparation must compare current `git rev-parse HEAD` with `manifest.sourceRevision` before allocating worktrees.
+An execution manifest is valid only for the Git revision from which it was generated. Preparation compares current `git rev-parse HEAD` with `manifest.sourceRevision` before allocating worktrees.
 
-After worktree creation, V2 context is generated and strict freshness checked against the same repository revision. If HEAD changes during preparation, the operation should fail and clean up only newly created derived state when safe.
+Before worktree mutation, V2 context is regenerated and strict freshness checked against the same repository revision. The revision is checked again before each allocation mutation. If HEAD changes, preparation fails; rollback is limited to newly created clean derived state.
 
 ## Agent boundary
 
-The worktree allocator is vendor-neutral. `agent=codex|claude` selects only which V2 handoff is associated with the allocation.
+The worktree allocator is vendor-neutral. `agent=codex|claude` is bound in the manifest and selects only which V2 handoff is associated with the allocation.
 
-V3 does not need to supervise a long-running agent process. It may emit an operator-facing launch suggestion in the allocation metadata, but automated process spawning is deliberately left behind a clean `ExecutionAllocation` seam.
+V3 does not supervise a long-running agent process. `ExecutionAllocation` is the clean seam a later runner can consume without changing planning/context contracts.
 
 ## Failure modes
 
@@ -120,11 +130,11 @@ Planner serializes conflicting tasks into separate waves.
 
 ### Existing active lease
 
-Preparation fails with the existing allocation metadata. No duplicate worktree.
+Preparation fails with the existing allocation metadata. No duplicate worktree ownership.
 
-### Existing branch/worktree without lease
+### Existing deterministic task worktree
 
-Preparation fails closed as externally managed state; it does not guess ownership.
+The exact expected path/branch can be resumed without reset when no active lease exists. Foreign path/branch ownership remains a hard collision.
 
 ### Dirty worktree on release
 
@@ -140,4 +150,4 @@ Preparation fails before reporting allocation ready.
 
 ## Decision
 
-Implement V3 as a deterministic local execution orchestration layer over the V1 planner and V2 context package. Use Git worktrees for isolation, a local JSON lease registry for collision protection, and explicit plan/prepare/release CLI commands. Keep agent execution, commits, pushes, merges and GraphRAG out of scope.
+Implement V3 as a deterministic local execution orchestration layer over the V1 planner and V2 context package. Use Git worktrees for isolation, a local JSON lease registry for collision protection, and explicit plan/prepare/status/release CLI commands. Keep agent supervision, commits, pushes, PR/merge automation and GraphRAG out of scope.
