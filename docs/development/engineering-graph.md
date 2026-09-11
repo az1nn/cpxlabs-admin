@@ -4,7 +4,7 @@
 
 Use Neo4j as a local/CI engineering projection over the repository to answer traceability, impact, drift, agent-context and parallelization questions without moving canonical project knowledge out of Git.
 
-V2 Agent Context Graph adds revision-aware disposable context packages for Codex and Claude Code. These packages are navigation artifacts, not canonical documentation.
+V2 Agent Context Graph adds revision-aware disposable context packages for Codex and Claude Code. V3 Execution Graph composes those packages with the existing task planner to produce conflict-safe waves and isolated Git worktrees. Generated packages/manifests/leases remain navigation/orchestration artifacts, not canonical documentation.
 
 ## Prerequisites
 
@@ -40,9 +40,9 @@ graph-engineering validate
 Before starting material work:
 
 ```bash
-graph-engineering ready --spec SPEC-010-AGENT-CONTEXT-GRAPH
-graph-engineering conflicts --spec SPEC-010-AGENT-CONTEXT-GRAPH
-graph-engineering waves --spec SPEC-010-AGENT-CONTEXT-GRAPH
+graph-engineering ready --spec SPEC-011-EXECUTION-GRAPH
+graph-engineering conflicts --spec SPEC-011-EXECUTION-GRAPH
+graph-engineering waves --spec SPEC-011-EXECUTION-GRAPH
 ```
 
 ## Agent Context Graph workflow
@@ -51,7 +51,7 @@ graph-engineering waves --spec SPEC-010-AGENT-CONTEXT-GRAPH
 
 ```bash
 graph-engineering context-batch \
-  --task SPEC-010-AGENT-CONTEXT-GRAPH:T044
+  --task SPEC-011-EXECUTION-GRAPH:T044
 ```
 
 The default output lives below `engineering-graph/context-packages/` and is ignored by Git.
@@ -71,7 +71,7 @@ claude.md
 
 ```bash
 graph-engineering context-batch \
-  --spec SPEC-010-AGENT-CONTEXT-GRAPH \
+  --spec SPEC-011-EXECUTION-GRAPH \
   --json
 ```
 
@@ -80,9 +80,7 @@ READY mode excludes BLOCKED tasks. Explicit `--task` selection can generate a pa
 ### Validate freshness immediately before implementation
 
 ```bash
-graph-engineering context-validate \
-  context-packages/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json \
-  --strict
+graph-engineering context-validate <context.json> --strict
 ```
 
 The package revision comes from the Neo4j projection's `sourceRevision`, not from a fresh local assumption. Strict validation compares that graph revision with current Git HEAD and fails for `stale` or `unknown`.
@@ -125,7 +123,7 @@ Override when needed:
 
 ```bash
 graph-engineering context-batch \
-  --task SPEC-010-AGENT-CONTEXT-GRAPH:T044 \
+  --task SPEC-011-EXECUTION-GRAPH:T044 \
   --depth 2 \
   --max-nodes 40 \
   --max-bytes 32768
@@ -139,17 +137,138 @@ Budgets are hard bounds. If optional evidence does not fit, lower-priority evide
 rm -rf context-packages/*
 graph-engineering sync
 graph-engineering validate
-graph-engineering context-batch --spec SPEC-010-AGENT-CONTEXT-GRAPH
+graph-engineering context-batch --spec SPEC-011-EXECUTION-GRAPH
 ```
 
 Do not keep a stale generated package alive by manually changing its revision field.
+
+## V3 Execution Graph workflow
+
+### Build a manifest
+
+```bash
+graph-engineering execution-plan \
+  --spec SPEC-011-EXECUTION-GRAPH \
+  --agent codex \
+  --output .execution/manifests/spec-011.json
+```
+
+Planning is read-only with respect to Git worktrees/leases. The manifest is bound to current Git HEAD and contains READY/BLOCKED state, cycles, artifact conflicts and deterministic waves.
+
+If projected task revisions differ from HEAD, sync first:
+
+```bash
+graph-engineering sync
+graph-engineering validate
+```
+
+### Dry-run the allocation
+
+```bash
+graph-engineering execution-prepare \
+  .execution/manifests/spec-011.json \
+  --wave 1 \
+  --dry-run \
+  --json
+```
+
+Dry-run still builds/strictly checks V2 context from Neo4j but does not create worktrees or active leases.
+
+### Prepare one wave
+
+```bash
+graph-engineering execution-prepare \
+  .execution/manifests/spec-011.json \
+  --wave 1
+```
+
+Explicit task selection is allowed only when all selected tasks are contained in one manifest wave:
+
+```bash
+graph-engineering execution-prepare \
+  .execution/manifests/spec-011.json \
+  --task SPEC-011-EXECUTION-GRAPH:T044
+```
+
+Cross-wave selection fails so callers cannot bypass dependency/conflict safety.
+
+Preparation sequence:
+
+```text
+manifest revision/repository check
+        ↓
+wave/task selection validation
+        ↓
+active lease collision check
+        ↓
+V2 ContextPackage build + strict freshness
+        ↓
+context/handoff write
+        ↓
+Git worktree create/resume
+        ↓
+active lease acquisition
+```
+
+### Inspect allocations
+
+```bash
+graph-engineering execution-status
+graph-engineering execution-status --json
+```
+
+The status surface reports active leases, whether the expected worktree is registered and whether it is dirty.
+
+### Work inside the allocation
+
+Use `worktreePath` as the coding working directory. Read `handoffPath`/`contextPath`, then open canonical files before editing. Never treat `.execution/` metadata as project truth.
+
+An active lease means only that the task is allocated. It does not mean the Task is started/completed in canonical `tasks.md`.
+
+### Release
+
+Release lease only:
+
+```bash
+graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T044
+```
+
+Release + remove clean worktree:
+
+```bash
+graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T044 --remove-worktree
+```
+
+Dirty worktree removal fails. Destructive cleanup is explicit:
+
+```bash
+graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T044 \
+  --remove-worktree \
+  --force
+```
+
+Worktree removal preserves the branch. V3 never commits, pushes, creates/merges PRs or changes canonical Task status automatically.
+
+### Execution root
+
+Default local state:
+
+```text
+engineering-graph/.execution/
+├── leases.json
+├── manifests/
+├── contexts/
+└── worktrees/
+```
+
+The root is ignored by Git. Generated metadata is disposable, but dirty worktree contents are user data and must be inspected before cleanup.
 
 ## Single context inspection
 
 For human inspection without writing the full package directory:
 
 ```bash
-graph-engineering context SPEC-010-AGENT-CONTEXT-GRAPH:T044 \
+graph-engineering context SPEC-011-EXECUTION-GRAPH:T044 \
   --format markdown
 ```
 
@@ -158,8 +277,8 @@ Open the canonical source paths named in that output before editing.
 ## Impact analysis
 
 ```bash
-graph-engineering impact ADR-0018 --depth 3
-graph-engineering impact SPEC-010-AGENT-CONTEXT-GRAPH:T044 --depth 3 --json
+graph-engineering impact ADR-0019 --depth 3
+graph-engineering impact SPEC-011-EXECUTION-GRAPH:T044 --depth 3 --json
 ```
 
 Depth is bounded; current CLI caps impact traversal at 5 hops and context packages use configured depth/node/byte budgets.
@@ -206,10 +325,10 @@ Use `error` only for invariants the repository can deterministically prove. Do n
 Prefer stable explicit references:
 
 ```markdown
-- [ ] T044 Extend Engineering Graph workflow `.github/workflows/engineering-graph.yml`
+- [ ] T056 Extend Engineering Graph workflow `.github/workflows/engineering-graph.yml`
 ```
 
-Use ADR references such as `ADR-0018` when a spec/plan is constrained by a durable decision. Optional frontmatter may provide machine-friendly graph metadata, but the Markdown body must remain sufficient for humans without Neo4j.
+Use ADR references such as `ADR-0019` when a spec/plan is constrained by a durable decision. Optional frontmatter may provide machine-friendly graph metadata, but the Markdown body must remain sufficient for humans without Neo4j.
 
 ## Pull requests
 
@@ -220,13 +339,16 @@ The recommended PR validation order is:
 ```text
 application CI (when applicable)
 Spec Kit integration status
-Engineering Graph offline tests
+Engineering Graph offline unit/integration tests
 Engineering Graph ephemeral Neo4j sync
 Engineering Graph validation/query smoke
 Agent Context package generation
 strict freshness validation
 Codex/Claude adapter smoke
 semantic package reproducibility
+Execution Graph manifest generation
+execution manifest semantic reproducibility
+worktree/lease lifecycle tests
 ```
 
 ## Troubleshooting
@@ -256,6 +378,20 @@ graph-engineering context-validate <context.json> --strict
 ```
 
 If generation reports a graph `sourceRevision` different from HEAD, the graph projection is stale. Re-sync it. Do not edit the generated package to silence freshness validation.
+
+### Execution manifest is stale
+
+Do not bypass the check. Re-sync/replan:
+
+```bash
+graph-engineering sync
+graph-engineering validate
+graph-engineering execution-plan --spec <SPEC-ID> --agent codex --output .execution/manifest.json
+```
+
+### Worktree release refuses cleanup
+
+Run `graph-engineering execution-status --json` and inspect the worktree directly. Normal cleanup protects dirty/untracked files. Use `--force` only when intentional data discard is acceptable.
 
 ### Wrong repository id
 
