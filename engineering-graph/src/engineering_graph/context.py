@@ -10,6 +10,7 @@ from .config import ContextBudget, GraphSettings, current_git_revision
 from .store import GraphStore
 
 PACKAGE_VERSION = "1"
+FRESHNESS_VALUES = frozenset({"current", "stale", "unknown"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,14 +110,30 @@ class ContextPackage:
     def semantic_json(self) -> str:
         return json.dumps(self.semantic_dict(), sort_keys=True, separators=(",", ":"), default=str)
 
+    def semantic_bytes(self) -> int:
+        return len(self.semantic_json().encode("utf-8"))
+
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "ContextPackage":
-        required = ("packageVersion", "repository", "sourceRevision", "taskId", "budget", "summary", "task")
+        required = (
+            "packageVersion",
+            "repository",
+            "sourceRevision",
+            "taskId",
+            "generatedAt",
+            "freshness",
+            "budget",
+            "summary",
+            "task",
+        )
         missing = [name for name in required if name not in payload]
         if missing:
             raise ValueError(f"Context package missing required fields: {', '.join(missing)}")
         if payload.get("packageVersion") != PACKAGE_VERSION:
             raise ValueError(f"Unsupported context package version: {payload.get('packageVersion')}")
+        freshness = str(payload.get("freshness") or "")
+        if freshness not in FRESHNESS_VALUES:
+            raise ValueError(f"Unsupported context package freshness: {freshness}")
         task = payload.get("task")
         if not isinstance(task, dict):
             raise ValueError("Context package task must be an object")
@@ -157,8 +174,8 @@ class ContextPackage:
             package_version=str(payload["packageVersion"]),
             repository=str(payload["repository"]),
             source_revision=str(payload["sourceRevision"]),
-            generated_at=str(payload.get("generatedAt") or ""),
-            freshness=str(payload.get("freshness") or "unknown"),
+            generated_at=str(payload["generatedAt"]),
+            freshness=freshness,
             budget=ContextBudget(
                 max_depth=int(budget_raw.get("maxDepth", 0)),
                 max_nodes=int(budget_raw.get("maxNodes", 0)),
@@ -248,7 +265,7 @@ def _count_nodes(spec: dict[str, Any] | None, groups: dict[str, tuple[dict[str, 
 
 
 def _semantic_bytes(package: ContextPackage) -> int:
-    return len(package.semantic_json().encode("utf-8"))
+    return package.semantic_bytes()
 
 
 def _with_summary(
@@ -347,6 +364,12 @@ def build_context(
         raise LookupError(f"Task not found in engineering graph: {task_id}")
 
     spec = row.get("spec") if effective.max_depth >= 1 and isinstance(row.get("spec"), dict) else None
+    mandatory_nodes = 1 + (1 if spec else 0)
+    if effective.max_nodes < mandatory_nodes:
+        raise ValueError(
+            f"Context max_nodes={effective.max_nodes} cannot fit mandatory task/spec nodes={mandatory_nodes}"
+        )
+
     group_depths = {
         "dependencies": 1,
         "codeArtifacts": 1,
@@ -367,7 +390,7 @@ def build_context(
         len(values) for values in raw_groups.values()
     )
 
-    remaining = max(effective.max_nodes - 1 - (1 if spec else 0), 0)
+    remaining = max(effective.max_nodes - mandatory_nodes, 0)
     selected: dict[str, tuple[dict[str, Any], ...]] = {}
     for name in ("requirements", "adrs", "dependencies", "codeArtifacts", "tests", "pullRequests"):
         values = raw_groups[name]
@@ -377,14 +400,23 @@ def build_context(
         chunk, remaining = _take(values, remaining)
         selected[name] = chunk
 
-    source_revision = current_git_revision(settings.repo_root) or "unknown"
+    graph_revision_value = row.get("sourceRevision") or task.get("sourceRevision")
+    source_revision = str(graph_revision_value) if graph_revision_value else "unknown"
+    current_revision = current_git_revision(settings.repo_root)
+    if source_revision == "unknown" or current_revision is None:
+        freshness = "unknown"
+    elif source_revision == current_revision:
+        freshness = "current"
+    else:
+        freshness = "stale"
+
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     empty_summary = ContextPackageSummary(0, 0, 0, False)
     package = ContextPackage(
         repository=settings.repository_id,
         source_revision=source_revision,
         generated_at=generated_at,
-        freshness="current" if source_revision != "unknown" else "unknown",
+        freshness=freshness,
         task=task,
         spec=spec,
         requirements=selected["requirements"],
@@ -414,6 +446,7 @@ def render_context_markdown(package: ContextPackage) -> str:
         "",
         f"Repository: `{package.repository}`",
         f"Source revision: `{package.source_revision}`",
+        f"Freshness at generation: `{package.freshness}`",
         f"Package version: `{package.package_version}`",
         f"Budget: depth ≤ {package.budget.max_depth}, nodes ≤ {package.budget.max_nodes}, bytes ≤ {package.budget.max_bytes}",
         f"Included nodes: {package.summary.included_nodes}; truncated nodes: {package.summary.truncated_nodes}; semantic bytes: {package.summary.rendered_bytes}",
