@@ -8,7 +8,7 @@ import shutil
 from typing import Any, Iterable
 
 from .agent_adapters import write_agent_handoff
-from .config import ContextBudget, GraphSettings
+from .config import ContextBudget, GraphSettings, current_git_revision
 from .context import ContextPackage, build_context, write_context
 from .store import GraphStore
 
@@ -152,8 +152,6 @@ def generate_context_packages(
         spec_id=spec_id,
         explicit_task_ids=explicit_task_ids,
     )
-    if not selected:
-        raise LookupError("No tasks selected for context package generation")
 
     generated: list[GeneratedPackage] = []
     source_revision: str | None = None
@@ -165,9 +163,12 @@ def generate_context_packages(
             raise RuntimeError("Repository revision changed during context package generation")
         generated.append(_write_package_directory(package, destination))
 
+    if source_revision is None:
+        source_revision = current_git_revision(settings.repo_root) or "unknown"
+
     manifest = PackageManifest(
         repository=settings.repository_id,
-        source_revision=source_revision or "unknown",
+        source_revision=source_revision,
         spec_id=spec_id,
         packages=tuple(generated),
     )
