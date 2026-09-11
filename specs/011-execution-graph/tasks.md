@@ -97,7 +97,7 @@
 - [x] T065 Verify allocations always point to fresh V2 package + canonical files
 - [x] T066 Verify no app/package runtime dependency on execution tooling
 - [x] T067 Run `$speckit-converge` against SC-001..SC-011
-- [ ] T068 Freeze only after Engineering Graph + Spec Kit + product CI are green on final HEAD
+- [x] T068 Freeze only after Engineering Graph + Spec Kit + product CI are green on final HEAD
 
 ## Dependencies
 
