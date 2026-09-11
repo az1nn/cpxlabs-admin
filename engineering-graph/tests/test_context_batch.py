@@ -57,6 +57,16 @@ class FakeStore:
         raise AssertionError(f"Unexpected query: {filename}")
 
 
+class NoReadyTaskStore(FakeStore):
+    def query_file(self, filename: str, parameters: dict[str, object]):
+        if filename == "ready-tasks.cypher":
+            return [
+                {"task": "SPEC-010-EXAMPLE:T001", "ready": False, "blockers": []},
+                {"task": "SPEC-010-EXAMPLE:T002", "ready": False, "blockers": []},
+            ]
+        return super().query_file(filename, parameters)
+
+
 def settings(root: Path) -> GraphSettings:
     return GraphSettings(
         tool_root=root,
@@ -110,6 +120,7 @@ class ContextBatchTests(unittest.TestCase):
             self.assertEqual(manifest.source_revision, "abc123")
             manifest_payload = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(manifest_payload["packageCount"], 2)
+            self.assertEqual(len(manifest_payload["tasks"]), 2)
             for generated in manifest.packages:
                 directory = output / generated.directory
                 self.assertTrue((directory / "context.json").exists())
@@ -120,6 +131,26 @@ class ContextBatchTests(unittest.TestCase):
                 self.assertEqual(payload["sourceRevision"], "abc123")
                 self.assertEqual(payload["freshness"], "current")
                 self.assertEqual(payload["packageVersion"], "1")
+
+    @patch("engineering_graph.context_batch.current_git_revision", return_value="abc123")
+    def test_completed_spec_writes_empty_manifest(self, _revision) -> None:
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            output = root / "packages"
+            manifest = generate_context_packages(
+                NoReadyTaskStore(),
+                settings(root),
+                spec_id="SPEC-010-EXAMPLE",
+                output_root=output,
+            )
+
+            self.assertEqual(manifest.packages, ())
+            self.assertEqual(manifest.source_revision, "abc123")
+            payload = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["packageCount"], 0)
+            self.assertEqual(payload["tasks"], [])
+            self.assertEqual(payload["specId"], "SPEC-010-EXAMPLE")
+            self.assertEqual(payload["sourceRevision"], "abc123")
 
     @patch("engineering_graph.context.current_git_revision", return_value="abc123")
     def test_regeneration_removes_stale_files_and_manifest_is_deterministic(self, _revision) -> None:
