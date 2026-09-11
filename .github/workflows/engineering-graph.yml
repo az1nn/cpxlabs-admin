@@ -7,6 +7,7 @@ on:
       - 'specs/**'
       - 'docs/adr/**'
       - 'docs/architecture/ENGINEERING_GRAPH.md'
+      - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -17,6 +18,7 @@ on:
       - 'specs/**'
       - 'docs/adr/**'
       - 'docs/architecture/ENGINEERING_GRAPH.md'
+      - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -44,6 +46,7 @@ jobs:
       NEO4J_PASSWORD: graph-ci-password
       NEO4J_DATABASE: neo4j
       GRAPH_REPOSITORY_ID: az1nn/cpxlabs-admin
+      CONTEXT_SPEC_ID: SPEC-010-AGENT-CONTEXT-GRAPH
 
     steps:
       - name: Checkout full history
@@ -92,13 +95,128 @@ jobs:
       - name: Validate architecture graph
         run: graph-engineering validate
 
+      - name: Select deterministic projected task for V2 smokes
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          from engineering_graph.config import load_settings
+          from engineering_graph.store import GraphStore
+
+          settings = load_settings()
+          spec_id = os.environ['CONTEXT_SPEC_ID']
+          with GraphStore(settings) as store:
+              rows = store.run(
+                  '''
+                  MATCH (spec:Spec {repository: $repository, canonicalId: $specId})
+                        -[:DECOMPOSED_INTO]->
+                        (task:Task {repository: $repository})
+                  RETURN task.canonicalId AS taskId
+                  ORDER BY task.canonicalId
+                  LIMIT 1
+                  ''',
+                  {'repository': settings.repository_id, 'specId': spec_id},
+              )
+          if not rows or not rows[0].get('taskId'):
+              raise SystemExit(f'No projected task found for {spec_id}')
+
+          task_id = str(rows[0]['taskId'])
+          task_dir = task_id.replace(':', '_')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env_file:
+              env_file.write(f'CONTEXT_TASK_ID={task_id}\n')
+              env_file.write(f'CONTEXT_TASK_DIR={task_dir}\n')
+          print(f'Selected projected task: {task_id}')
+          PY
+
       - name: Smoke fundamental graph queries
         shell: bash
         run: |
-          graph-engineering impact ADR-0017 --depth 3 --limit 100 --json
-          graph-engineering ready --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
-          graph-engineering conflicts --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
+          graph-engineering impact ADR-0018 --depth 3 --limit 100 --json
+          graph-engineering ready --spec "$CONTEXT_SPEC_ID" --json
+          graph-engineering conflicts --spec "$CONTEXT_SPEC_ID" --json
           graph-engineering drift --json
-          graph-engineering context SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T061 --format json
-          graph-engineering waves --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE --json
+          graph-engineering context "$CONTEXT_TASK_ID" --format json
+          graph-engineering waves --spec "$CONTEXT_SPEC_ID" --json
           graph-engineering stats --json
+
+      - name: Generate one portable Agent Context package
+        run: |
+          graph-engineering context-batch \
+            --task "$CONTEXT_TASK_ID" \
+            --output-root /tmp/agent-context-single \
+            --json | tee /tmp/agent-context-single-manifest.json
+          test -f "/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/context.json"
+          test -f "/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/context.md"
+          test -f "/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/codex.md"
+          test -f "/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/claude.md"
+
+      - name: Strictly validate package freshness
+        run: |
+          graph-engineering context-validate \
+            "/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/context.json" \
+            --strict --json
+
+      - name: Prove adapter rendering from portable package
+        run: |
+          PACKAGE="/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/context.json"
+          graph-engineering context-adapt "$PACKAGE" --agent codex --output /tmp/codex-handoff.md
+          graph-engineering context-adapt "$PACKAGE" --agent claude --output /tmp/claude-handoff.md
+          grep -q 'AGENTS.md' /tmp/codex-handoff.md
+          grep -q "$CONTEXT_TASK_ID" /tmp/codex-handoff.md
+          grep -q "$CONTEXT_TASK_ID" /tmp/claude-handoff.md
+
+      - name: Prove semantic package reproducibility
+        shell: bash
+        run: |
+          PACKAGE="/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/context.json"
+          cp "$PACKAGE" /tmp/context-before.json
+          graph-engineering context-batch \
+            --task "$CONTEXT_TASK_ID" \
+            --output-root /tmp/agent-context-single \
+            --json >/tmp/regenerated-manifest.json
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from engineering_graph.context_validation import load_context_package
+
+          before = load_context_package(Path('/tmp/context-before.json'))
+          after_path = (
+              Path('/tmp/agent-context-single')
+              / os.environ['CONTEXT_SPEC_ID']
+              / os.environ['CONTEXT_TASK_DIR']
+              / 'context.json'
+          )
+          after = load_context_package(after_path)
+          if before.semantic_json() != after.semantic_json():
+              raise SystemExit('Context package semantic content changed at the same revision')
+          PY
+
+      - name: Generate READY task context packages
+        shell: bash
+        run: |
+          graph-engineering context-batch \
+            --spec "$CONTEXT_SPEC_ID" \
+            --output-root /tmp/agent-context-ready \
+            --json | tee /tmp/agent-context-ready-manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('/tmp/agent-context-ready-manifest.json').read_text())
+          tasks = payload.get('tasks')
+          package_count = payload.get('packageCount')
+          if not isinstance(tasks, list) or package_count != len(tasks):
+              raise SystemExit('READY context manifest count does not match tasks')
+          print(f'READY package count: {package_count}')
+          PY
+
+      - name: Prove generated packages are disposable
+        run: |
+          rm -rf /tmp/agent-context-single
+          graph-engineering context-batch \
+            --task "$CONTEXT_TASK_ID" \
+            --output-root /tmp/agent-context-single \
+            --json >/tmp/disposable-regenerated.json
+          graph-engineering context-validate \
+            "/tmp/agent-context-single/$CONTEXT_SPEC_ID/$CONTEXT_TASK_DIR/context.json" \
+            --strict

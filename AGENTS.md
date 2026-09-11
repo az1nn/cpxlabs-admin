@@ -6,6 +6,8 @@ This repository uses GitHub Spec Kit for material feature development and a repo
 
 Canonical knowledge is always authored in Git-backed files: `.specify/`, `specs/`, `docs/adr/`, source code, tests and Git history. The Engineering Graph is a rebuildable projection only. Never author canonical requirements, architecture decisions, task state, implementation evidence or test evidence directly in Neo4j.
 
+Generated Agent Context Graph packages are also derived and disposable. They are task maps tied to a Git revision, not canonical documentation.
+
 If Neo4j is unavailable, continue from the canonical files. Graph unavailability may reduce planning/context automation but MUST NOT block application runtime or change business behavior.
 
 ## Start Here
@@ -28,10 +30,29 @@ graph-engineering sync
 graph-engineering validate
 graph-engineering impact <CANONICAL_ID>
 graph-engineering context <TASK_CANONICAL_ID>
+graph-engineering context-batch --task <TASK_CANONICAL_ID>
+graph-engineering context-validate context-packages/.../context.json --strict
 graph-engineering waves --spec <SPEC_CANONICAL_ID>
 ```
 
 Treat graph results as derived evidence. Before editing, follow returned `sourcePath`/`path` references to the canonical files.
+
+## Agent Context Package Workflow
+
+For an implementation task when Neo4j is available:
+
+1. `graph-engineering sync` after relevant specs/tasks/ADRs change;
+2. `graph-engineering validate` and fix error-level graph findings;
+3. generate a package with `graph-engineering context-batch --task <TASK-ID>` or generate all READY work with `--spec <SPEC-ID>`;
+4. run `graph-engineering context-validate <context.json> --strict` immediately before implementation;
+5. Codex uses the generated `codex.md`; Claude Code uses `claude.md`;
+6. open the canonical files listed by the handoff/package before editing;
+7. run repository validation commands after changes;
+8. discard/regenerate packages whenever Git revision or graph evidence changes.
+
+A stale package is not current implementation context. Never bypass strict freshness because a generated file “looks right.”
+
+`context-batch --spec` selects READY tasks only. BLOCKED tasks require explicit task selection; package generation is not authority to ignore dependency state.
 
 ## Spec Kit Commands
 
@@ -55,13 +76,13 @@ Specifications `001` through `004` are historical retrofits. New feature work st
 Stable explicit references improve deterministic graph quality. Prefer these conventions when they are known during authoring:
 
 - keep Spec Kit requirement IDs (`FR-###`, `SC-###`) and task IDs (`T###`) stable inside a feature;
-- reference ADRs by stable ID such as `ADR-0017`;
+- reference ADRs by stable ID such as `ADR-0018`;
 - place repository paths in backticks when a task is expected to change or validate a concrete file;
 - express real task dependencies explicitly with `depends: T001,T002` instead of relying on phase ordering;
 - optional YAML frontmatter may add graph metadata, but must remain readable and useful without Neo4j;
 - never add a graph edge merely because an AI model considers two concepts similar.
 
-The graph canonicalizes local IDs under the parent spec, e.g. `SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T001`, so task IDs can remain human-friendly in `tasks.md`.
+The graph canonicalizes local IDs under the parent spec, e.g. `SPEC-010-AGENT-CONTEXT-GRAPH:T001`, so task IDs can remain human-friendly in `tasks.md`.
 
 ## Architecture Rules
 
@@ -74,6 +95,7 @@ The graph canonicalizes local IDs under the parent spec, e.g. `SPEC-009-GRAPH-EN
 - Add a package only when there is a concrete reuse/boundary need; avoid premature internal frameworks.
 - Structural/cross-cutting decisions require an ADR.
 - No application package may import the Neo4j driver or `engineering_graph`; Graph Engineering belongs to development/CI tooling only.
+- Agent adapters consume portable ContextPackage files; they do not implement independent graph traversal or write canonical project knowledge.
 
 ## Graph-Assisted Planning
 
@@ -83,7 +105,7 @@ For material work after `tasks.md` exists:
 2. run `graph-engineering validate` and fix error-level findings;
 3. run `graph-engineering ready --spec <SPEC>` and `graph-engineering conflicts --spec <SPEC>`;
 4. use `graph-engineering waves --spec <SPEC>` to propose parallel work only when the explicit dependency DAG and changed-artifact evidence support it;
-5. use `graph-engineering context <TASK>` to build a bounded context package for an agent/worktree;
+5. generate/validate a bounded context package before assigning implementation work;
 6. re-sync after task/spec/ADR/code/test/PR evidence changes.
 
 A generated execution wave is a plan, not authority to bypass branch/MR ownership, CI, review or the Spec Kit lifecycle.

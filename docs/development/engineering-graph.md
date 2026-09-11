@@ -4,6 +4,8 @@
 
 Use Neo4j as a local/CI engineering projection over the repository to answer traceability, impact, drift, agent-context and parallelization questions without moving canonical project knowledge out of Git.
 
+V2 Agent Context Graph adds revision-aware disposable context packages for Codex and Claude Code. These packages are navigation artifacts, not canonical documentation.
+
 ## Prerequisites
 
 - Python 3.13+
@@ -38,29 +40,129 @@ graph-engineering validate
 Before starting material work:
 
 ```bash
-graph-engineering ready --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE
-graph-engineering conflicts --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE
-graph-engineering waves --spec SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE
+graph-engineering ready --spec SPEC-010-AGENT-CONTEXT-GRAPH
+graph-engineering conflicts --spec SPEC-010-AGENT-CONTEXT-GRAPH
+graph-engineering waves --spec SPEC-010-AGENT-CONTEXT-GRAPH
 ```
 
-Before assigning one task to an agent/worktree:
+## Agent Context Graph workflow
+
+### Generate one task package
 
 ```bash
-graph-engineering context SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T061 \
-  --format markdown \
-  --output context-packages/T061.md
+graph-engineering context-batch \
+  --task SPEC-010-AGENT-CONTEXT-GRAPH:T044
 ```
 
-Open the canonical source paths named in that package before editing.
+The default output lives below `engineering-graph/context-packages/` and is ignored by Git.
+
+Each task directory contains:
+
+```text
+context.json
+context.md
+codex.md
+claude.md
+```
+
+`context.json` is the portable machine contract. The other files are projections/renderings from the same package.
+
+### Generate all READY packages for a spec
+
+```bash
+graph-engineering context-batch \
+  --spec SPEC-010-AGENT-CONTEXT-GRAPH \
+  --json
+```
+
+READY mode excludes BLOCKED tasks. Explicit `--task` selection can generate a package for inspection but does not change task readiness or dependency state.
+
+### Validate freshness immediately before implementation
+
+```bash
+graph-engineering context-validate \
+  context-packages/SPEC-010-AGENT-CONTEXT-GRAPH/SPEC-010-AGENT-CONTEXT-GRAPH_T044/context.json \
+  --strict
+```
+
+The package revision comes from the Neo4j projection's `sourceRevision`, not from a fresh local assumption. Strict validation compares that graph revision with current Git HEAD and fails for `stale` or `unknown`.
+
+This protects against the dangerous sequence:
+
+```text
+graph synced at revision A
+        ↓
+Git moves to revision B
+        ↓
+old Neo4j context queried
+        ↓
+strict context validation FAILS
+```
+
+### Agent handoffs
+
+```bash
+graph-engineering context-adapt context.json --agent codex
+graph-engineering context-adapt context.json --agent claude
+```
+
+The adapters are pure renderers over the portable JSON package. They do not query Neo4j independently.
+
+Codex handoffs point to repository `AGENTS.md`; Claude Code handoffs remain portable Markdown. Both list canonical files and relevant validation commands.
+
+### Context budgets
+
+`engineering-graph/config.yaml` defines defaults:
+
+```yaml
+context:
+  max_depth: 3
+  max_nodes: 80
+  max_bytes: 65536
+```
+
+Override when needed:
+
+```bash
+graph-engineering context-batch \
+  --task SPEC-010-AGENT-CONTEXT-GRAPH:T044 \
+  --depth 2 \
+  --max-nodes 40 \
+  --max-bytes 32768
+```
+
+Budgets are hard bounds. If optional evidence does not fit, lower-priority evidence is deterministically truncated and the package reports `truncatedNodes`, `renderedBytes` and `truncated`. If the mandatory Task/Spec metadata cannot fit, generation fails rather than emitting an invalid package.
+
+### Regenerate after repository movement
+
+```bash
+rm -rf context-packages/*
+graph-engineering sync
+graph-engineering validate
+graph-engineering context-batch --spec SPEC-010-AGENT-CONTEXT-GRAPH
+```
+
+Do not keep a stale generated package alive by manually changing its revision field.
+
+## Single context inspection
+
+For human inspection without writing the full package directory:
+
+```bash
+graph-engineering context SPEC-010-AGENT-CONTEXT-GRAPH:T044 \
+  --format markdown
+```
+
+Open the canonical source paths named in that output before editing.
 
 ## Impact analysis
 
 ```bash
-graph-engineering impact ADR-0017 --depth 3
-graph-engineering impact SPEC-009-GRAPH-ENGINEERING-CONTROL-PLANE:T061 --depth 3 --json
+graph-engineering impact ADR-0018 --depth 3
+graph-engineering impact SPEC-010-AGENT-CONTEXT-GRAPH:T044 --depth 3 --json
 ```
 
-Depth is bounded; current CLI caps impact traversal at 5 hops and context packages use the configured node budget.
+Depth is bounded; current CLI caps impact traversal at 5 hops and context packages use configured depth/node/byte budgets.
 
 ## Querying directly
 
@@ -104,10 +206,10 @@ Use `error` only for invariants the repository can deterministically prove. Do n
 Prefer stable explicit references:
 
 ```markdown
-- [ ] T042 [P] Add validator tests `engineering-graph/tests/test_validator.py` (`depends: T043`)
+- [ ] T044 Extend Engineering Graph workflow `.github/workflows/engineering-graph.yml`
 ```
 
-Use ADR references such as `ADR-0017` when a spec/plan is constrained by a durable decision. Optional frontmatter may provide machine-friendly graph metadata, but the Markdown body must remain sufficient for humans without Neo4j.
+Use ADR references such as `ADR-0018` when a spec/plan is constrained by a durable decision. Optional frontmatter may provide machine-friendly graph metadata, but the Markdown body must remain sufficient for humans without Neo4j.
 
 ## Pull requests
 
@@ -117,10 +219,14 @@ The recommended PR validation order is:
 
 ```text
 application CI (when applicable)
-Spec Kit integration status (when applicable)
-Engineering Graph unit tests
+Spec Kit integration status
+Engineering Graph offline tests
 Engineering Graph ephemeral Neo4j sync
 Engineering Graph validation/query smoke
+Agent Context package generation
+strict freshness validation
+Codex/Claude adapter smoke
+semantic package reproducibility
 ```
 
 ## Troubleshooting
@@ -137,6 +243,19 @@ Check:
 docker compose ps
 docker compose logs neo4j
 ```
+
+### Context package is stale immediately after generation
+
+Run:
+
+```bash
+git rev-parse HEAD
+graph-engineering sync
+graph-engineering context-batch --task <TASK-ID>
+graph-engineering context-validate <context.json> --strict
+```
+
+If generation reports a graph `sourceRevision` different from HEAD, the graph projection is stale. Re-sync it. Do not edit the generated package to silence freshness validation.
 
 ### Wrong repository id
 
