@@ -7,6 +7,7 @@ OPTIONAL MATCH (task)-[:IMPLEMENTED_BY]->(code:CodeArtifact {repository: $reposi
 OPTIONAL MATCH (task)-[:VALIDATED_BY]->(test:Test {repository: $repository})
 OPTIONAL MATCH (pr:PullRequest {repository: $repository})-[:IMPLEMENTS]->(task)
 RETURN properties(task) AS task,
+       task.sourceRevision AS sourceRevision,
        properties(spec) AS spec,
        collect(DISTINCT properties(requirement)) AS requirements,
        collect(DISTINCT properties(adr)) AS adrs,
