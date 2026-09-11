@@ -6,12 +6,33 @@ OPTIONAL MATCH (task)-[:DEPENDS_ON]->(dependency:Task {repository: $repository})
 OPTIONAL MATCH (task)-[:IMPLEMENTED_BY]->(code:CodeArtifact {repository: $repository})
 OPTIONAL MATCH (task)-[:VALIDATED_BY]->(test:Test {repository: $repository})
 OPTIONAL MATCH (pr:PullRequest {repository: $repository})-[:IMPLEMENTS]->(task)
-RETURN properties(task) AS task,
+RETURN task {
+         .canonicalId, .sourceId, .title, .status, .priority, .parallel,
+         .userStory, .phase, .sourcePath, .line, .specId, .sourceRevision
+       } AS task,
        task.sourceRevision AS sourceRevision,
-       properties(spec) AS spec,
-       collect(DISTINCT properties(requirement)) AS requirements,
-       collect(DISTINCT properties(adr)) AS adrs,
-       collect(DISTINCT properties(dependency)) AS dependencies,
-       collect(DISTINCT properties(code)) AS code,
-       collect(DISTINCT properties(test)) AS tests,
-       collect(DISTINCT properties(pr)) AS pullRequests
+       spec {
+         .canonicalId, .featureId, .slug, .title, .status,
+         .sourcePath, .enforced, .sourceRevision
+       } AS spec,
+       collect(DISTINCT requirement {
+         .canonicalId, .sourceId, .kind, .text, .critical,
+         .sourcePath, .line, .sourceRevision
+       }) AS requirements,
+       collect(DISTINCT adr {
+         .canonicalId, .number, .title, .status, .sourcePath, .sourceRevision
+       }) AS adrs,
+       collect(DISTINCT dependency {
+         .canonicalId, .sourceId, .title, .status, .priority, .parallel,
+         .userStory, .phase, .sourcePath, .line, .specId, .sourceRevision
+       }) AS dependencies,
+       collect(DISTINCT code {
+         .canonicalId, .path, .kind, .exists, .sourceRevision
+       }) AS code,
+       collect(DISTINCT test {
+         .canonicalId, .path, .kind, .exists, .sourceRevision
+       }) AS tests,
+       collect(DISTINCT pr {
+         .canonicalId, .number, .title, .state, .url,
+         .headSha, .baseSha, .source, .sourceRevision
+       }) AS pullRequests
