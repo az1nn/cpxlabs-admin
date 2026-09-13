@@ -77,6 +77,8 @@ class AgentRunnerForceCliTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def _entry(self, *args: str, timeout: float = 10.0) -> subprocess.CompletedProcess[str]:
+        environment = os.environ.copy()
+        environment["GRAPH_REPOSITORY_ID"] = "example/runner-force"
         return subprocess.run(
             [
                 sys.executable,
@@ -90,6 +92,7 @@ class AgentRunnerForceCliTests(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=environment,
         )
 
     def test_force_stop_kills_sigterm_ignoring_fixture_and_preserves_lease(self) -> None:
