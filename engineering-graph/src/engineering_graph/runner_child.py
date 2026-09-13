@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 from typing import Sequence
 
@@ -49,23 +50,40 @@ def main(argv: Sequence[str] | None = None) -> int:
     stdout_path.parent.mkdir(parents=True, exist_ok=True)
     stderr_path.parent.mkdir(parents=True, exist_ok=True)
 
+    child: subprocess.Popen[bytes] | None = None
+    stop_requested = False
+
+    def request_stop(_signum: int, _frame: object) -> None:
+        nonlocal stop_requested
+        stop_requested = True
+        if child is not None and child.poll() is None:
+            try:
+                child.terminate()
+            except ProcessLookupError:
+                pass
+
+    signal.signal(signal.SIGTERM, request_stop)
+
     exit_code: int
     with stdout_path.open("ab", buffering=0) as stdout_handle, stderr_path.open("ab", buffering=0) as stderr_handle:
         try:
-            completed = subprocess.run(
+            child = subprocess.Popen(
                 command,
-                input=stdin_data,
-                stdin=subprocess.DEVNULL if stdin_data is None else None,
+                stdin=subprocess.PIPE if stdin_data is not None else subprocess.DEVNULL,
                 stdout=stdout_handle,
                 stderr=stderr_handle,
                 shell=False,
-                check=False,
             )
-            exit_code = int(completed.returncode)
+            child.communicate(input=stdin_data)
+            exit_code = int(child.returncode if child.returncode is not None else 1)
         except OSError as error:
-            stderr_handle.write(f"runner child failed to execute argv: {error}\n".encode("utf-8", errors="replace"))
+            stderr_handle.write(
+                f"runner child failed to execute argv: {error}\n".encode("utf-8", errors="replace")
+            )
             exit_code = 127
 
+    # A graceful stop still records the child exit so a detached caller can reconcile
+    # terminal state without mistaking a short-lived zombie wrapper for a running process.
     _atomic_json(
         Path(args.result),
         {
@@ -75,7 +93,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "finishedAt": _utc_now(),
         },
     )
-    return exit_code
+    return exit_code if not stop_requested else (exit_code or 143)
 
 
 if __name__ == "__main__":
