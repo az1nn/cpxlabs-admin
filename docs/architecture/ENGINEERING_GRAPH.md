@@ -4,7 +4,7 @@
 
 The Engineering Graph turns relationships that are implicit across Spec Kit artifacts, ADRs, code, tests and pull requests into a queryable projection for humans, CI and coding agents.
 
-It is intentionally not part of the business runtime. Git-backed files remain the source of truth; the Neo4j database can be deleted and rebuilt at any time.
+It is intentionally not part of the business runtime. Git-backed files remain the source of truth; the Neo4j database and all generated context/execution/retrieval state can be deleted and rebuilt at any time.
 
 ## System boundary
 
@@ -17,27 +17,34 @@ Git repository (canonical)
   ├── tests / e2e / stories
   └── Git + PR metadata
           │
-          ▼
-engineering-graph extractor
-          │
-          ▼
-validated GraphModel
-          │
-          ▼
-Neo4j projection
-          │
-   ┌──────┼───────────────┐
-   ▼      ▼               ▼
- queries  validator       planners
-   │      │               │
- impact  drift       ready/conflicts/waves
-   │      │               │
-   └──────┴──────┬────────┘
-                 ▼
-        bounded agent context
+          ├──────────────────────────────┐
+          ▼                              ▼
+engineering-graph extractor      GraphRAG corpus/chunker
+          │                              │
+          ▼                              ▼
+validated GraphModel             derived semantic index
+          │                              │
+          ▼                              │
+Neo4j deterministic projection          │
+          │                              │
+   ┌──────┼───────────────┐              │
+   ▼      ▼               ▼              │
+ queries  validator       planners       │
+   │      │               │              │
+ impact  drift       ready/conflicts     │
+                         /waves           │
+   │      │               │              │
+   └──────┴──────┬────────┘              │
+                 ▼                       │
+        bounded agent context            │
+                 │                       │
+                 └──────────┬────────────┘
+                            ▼
+                 semantic seeds + bounded
+                 deterministic graph expansion
 ```
 
-Application packages have no dependency on Neo4j or the Python engineering toolchain.
+Application packages have no dependency on Neo4j, GraphRAG or the Python engineering toolchain.
 
 ## Canonical graph model
 
@@ -59,11 +66,11 @@ PullRequest --IMPLEMENTS--------> Task
 PullRequest --CHANGES-----------> CodeArtifact/Test
 ```
 
-The schema intentionally has a small vocabulary. New labels/relationship types require a material design change rather than ad-hoc insertion.
+The schema intentionally has a small vocabulary. New labels/relationship types require a material design change rather than ad-hoc insertion. GraphRAG does not add similarity or inferred relationship types.
 
 ## Identity
 
-Every node uses composite identity:
+Every canonical graph node uses composite identity:
 
 ```text
 (repository, canonicalId)
@@ -109,21 +116,21 @@ The Graph Validator runs configurable invariants with `error`, `warning` or `off
 
 Historical retrofitted specs may downgrade selected evidence rules from error to warning because their pre-Spec-Kit history is incomplete by design.
 
-## Context building
+## V2 context building
 
 Context packages are bounded subgraphs keyed by a task. The builder returns only relevant parent spec, requirements, ADRs, dependencies, implementation paths, tests and PR evidence.
 
-Budgets are explicit (`maxDepth`, `maxNodes`). Truncation is surfaced rather than silently producing an unbounded prompt.
+Budgets are explicit (`maxDepth`, `maxNodes`, `maxBytes`). Truncation is surfaced rather than silently producing an unbounded prompt.
 
 This enables:
 
 ```text
-Task → Engineering Graph → bounded context package → Codex/OpenCode/other agent
+Task → Engineering Graph → bounded ContextPackage → Codex/Claude/other agent
 ```
 
 The generated package is still derived context. Agents follow its repository paths back to canonical files before making changes.
 
-## Execution planning
+## V3 execution planning and allocation
 
 Tasks form a DAG only when explicit `DEPENDS_ON` evidence exists. Phase order is not automatically converted to dependency edges.
 
@@ -135,7 +142,46 @@ The planner computes:
 - artifact-overlap conflicts;
 - topological execution waves.
 
-A wave never contains two tasks that share an explicitly linked implementation/test artifact. This provides a conservative basis for parallel worktrees/agents without pretending concurrency is risk-free.
+A wave never contains two tasks that share an explicitly linked implementation/test artifact. V3 binds the plan to a Git revision, creates isolated Git worktrees and records local derived leases while leaving canonical Task state unchanged.
+
+Execution manifests, leases and handoffs are disposable operational state. Dirty worktree contents are user data and are protected from automatic destructive cleanup.
+
+## V4 GraphRAG
+
+GraphRAG adds semantic discovery without modifying the canonical graph.
+
+```text
+Git-tracked eligible files
+        │
+        ▼
+ deterministic chunks
+        │
+        ▼
+ derived embedding index
+        │
+        ▼
+ natural-language retrieval
+        │
+        ▼
+ semantic hit source paths
+        │
+        ▼
+ existing sourcePath/path graph anchors
+        │
+        ▼
+ bounded traversal over existing relationships
+```
+
+The semantic index lives outside Neo4j under `engineering-graph/.graphrag/` by default. It is bound to repository revision, provider/model identity, dimensions and chunk configuration.
+
+Only Git-tracked eligible files can enter the corpus. Semantic scores are retrieval evidence only. They never create `SIMILAR_TO`, `RELATED_TO`, inferred `DEPENDS_ON` or any other canonical edge.
+
+Two provider modes exist:
+
+- `hashing`: deterministic offline retrieval surrogate for CI/mechanics;
+- `http`: configurable learned embedding endpoint without a mandatory SDK dependency.
+
+GraphRAG result packages keep semantic hits, deterministic graph anchors and graph evidence as separate layers. See `docs/architecture/GRAPHRAG.md` and ADR-0020.
 
 ## Pull request traceability
 
@@ -154,7 +200,7 @@ PR metadata is evidence, not a source for changing canonical task status.
 The Engineering Graph workflow is independent of application CI:
 
 ```text
-Python unit tests
+Python unit/integration tests
       ↓
 Ephemeral Neo4j
       ↓
@@ -166,35 +212,58 @@ Second sync / idempotency smoke
       ↓
 Graph validation
       ↓
-Fundamental query smoke tests
+V1 query smokes
       ↓
-Architecture graph gate
+V2 ContextPackage freshness/reproducibility
+      ↓
+V3 ExecutionManifest/wave smokes
+      ↓
+V4 semantic-index reproducibility/freshness
+      ↓
+V4 semantic seed → existing graph expansion
+      ↓
+prove GraphRAG query leaves graph stats unchanged
 ```
 
 A graph error blocks that workflow. Warnings remain visible but non-blocking unless promoted in `engineering-graph/config.yaml`.
 
 ## Failure model
 
-Neo4j outage does not break the product runtime. Local development may fall back to canonical repository files. CI graph failures block only the engineering architecture gate and must never be hidden by weakening application tests or silently treating the graph as authoritative.
+Neo4j outage does not break the product runtime. Local development may fall back to canonical repository files. GraphRAG index failure or embedding endpoint failure also does not affect product runtime.
 
-## Future roadmap
+Semantic retrieval can operate without graph expansion if Neo4j is unavailable, but such results remain semantic evidence only. CI graph failures must never be hidden by weakening application tests or silently treating generated state as authoritative.
 
-### V2 — richer agent context
+## Delivered roadmap
 
-- better explicit task-to-artifact authoring;
-- context package manifests/hashes;
-- worktree handoff helpers.
+### V1 — Engineering Graph control plane
 
-### V3 — execution orchestration
+- deterministic repository projection;
+- traceability/impact/drift;
+- task DAG/conflicts/waves;
+- CI architecture validation.
 
+### V2 — Agent Context Graph
+
+- portable revision-aware ContextPackage;
+- deterministic budgets/hashes;
+- Codex/Claude handoffs;
+- strict freshness/disposable regeneration.
+
+### V3 — Execution Graph
+
+- revision-bound ExecutionManifest;
 - worktree allocation;
-- execution reservations/leases outside Neo4j authority;
-- conflict-aware agent waves with merge sequencing.
+- local execution reservations/leases;
+- conflict-aware waves and safe release semantics.
 
 ### V4 — GraphRAG
 
-- semantic retrieval over repository content;
+- semantic retrieval over Git-tracked repository content;
+- revision/provider/model-bound derived vector index;
 - graph expansion around semantic seeds;
-- ADR/spec discovery.
+- ADR/spec/requirement discovery;
+- read-only composition with the deterministic graph.
 
-GraphRAG must remain retrieval assistance. It may propose relationships, but canonical/validated edges must still come from deterministic repository evidence unless a later ADR explicitly changes that governance model.
+## Governance invariant
+
+Across V1–V4, canonical knowledge remains in Git-backed files and validated deterministic graph edges come only from explicit repository evidence. GraphRAG may help humans/agents discover possible relationships or relevant files, but promotion of semantic inference into graph authority would require a later ADR defining review, provenance and validation semantics.

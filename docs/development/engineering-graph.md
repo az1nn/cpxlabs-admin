@@ -2,15 +2,18 @@
 
 ## Goal
 
-Use Neo4j as a local/CI engineering projection over the repository to answer traceability, impact, drift, agent-context and parallelization questions without moving canonical project knowledge out of Git.
+Use Neo4j as a local/CI engineering projection over the repository to answer traceability, impact, drift, agent-context, execution and semantic-discovery questions without moving canonical project knowledge out of Git.
 
-V2 Agent Context Graph adds revision-aware disposable context packages for Codex and Claude Code. V3 Execution Graph composes those packages with the existing task planner to produce conflict-safe waves and isolated Git worktrees. Generated packages/manifests/leases remain navigation/orchestration artifacts, not canonical documentation.
+V2 Agent Context Graph adds revision-aware disposable ContextPackages. V3 Execution Graph composes those packages with the task planner to produce conflict-safe waves and isolated Git worktrees. V4 GraphRAG adds a revision/provider-bound semantic sidecar index that discovers repository content and then expands only through existing deterministic Neo4j relationships.
+
+Generated packages, manifests, leases, semantic indexes and retrieval results are operational artifacts, not canonical documentation.
 
 ## Prerequisites
 
 - Python 3.13+
 - Docker / Docker Compose
 - Git checkout with repository history
+- optional learned embedding HTTP endpoint for production-quality semantic retrieval
 
 ## First run
 
@@ -27,7 +30,7 @@ graph-engineering sync
 graph-engineering validate
 ```
 
-## Daily workflow
+## Daily graph workflow
 
 After pulling/changing specs, ADRs, tasks, code or tests:
 
@@ -37,24 +40,27 @@ graph-engineering sync
 graph-engineering validate
 ```
 
-Before starting material work:
+Before starting material task work:
 
 ```bash
-graph-engineering ready --spec SPEC-011-EXECUTION-GRAPH
-graph-engineering conflicts --spec SPEC-011-EXECUTION-GRAPH
-graph-engineering waves --spec SPEC-011-EXECUTION-GRAPH
+graph-engineering ready --spec <SPEC-ID>
+graph-engineering conflicts --spec <SPEC-ID>
+graph-engineering waves --spec <SPEC-ID>
 ```
 
-## Agent Context Graph workflow
+## V2 Agent Context Graph workflow
 
-### Generate one task package
+Generate one task package:
 
 ```bash
-graph-engineering context-batch \
-  --task SPEC-011-EXECUTION-GRAPH:T044
+graph-engineering context-batch --task <TASK-ID>
 ```
 
-The default output lives below `engineering-graph/context-packages/` and is ignored by Git.
+Generate all READY packages:
+
+```bash
+graph-engineering context-batch --spec <SPEC-ID> --json
+```
 
 Each task directory contains:
 
@@ -65,52 +71,24 @@ codex.md
 claude.md
 ```
 
-`context.json` is the portable machine contract. The other files are projections/renderings from the same package.
+`context.json` is the portable contract. The other files are renderings from the same package.
 
-### Generate all READY packages for a spec
-
-```bash
-graph-engineering context-batch \
-  --spec SPEC-011-EXECUTION-GRAPH \
-  --json
-```
-
-READY mode excludes BLOCKED tasks. Explicit `--task` selection can generate a package for inspection but does not change task readiness or dependency state.
-
-### Validate freshness immediately before implementation
+Validate freshness immediately before implementation:
 
 ```bash
 graph-engineering context-validate <context.json> --strict
 ```
 
-The package revision comes from the Neo4j projection's `sourceRevision`, not from a fresh local assumption. Strict validation compares that graph revision with current Git HEAD and fails for `stale` or `unknown`.
+The package revision comes from the projected graph. Strict validation compares it with current Git HEAD and fails for stale/unknown state.
 
-This protects against the dangerous sequence:
-
-```text
-graph synced at revision A
-        ↓
-Git moves to revision B
-        ↓
-old Neo4j context queried
-        ↓
-strict context validation FAILS
-```
-
-### Agent handoffs
+Agent renderers:
 
 ```bash
 graph-engineering context-adapt context.json --agent codex
 graph-engineering context-adapt context.json --agent claude
 ```
 
-The adapters are pure renderers over the portable JSON package. They do not query Neo4j independently.
-
-Codex handoffs point to repository `AGENTS.md`; Claude Code handoffs remain portable Markdown. Both list canonical files and relevant validation commands.
-
-### Context budgets
-
-`engineering-graph/config.yaml` defines defaults:
+Default budgets:
 
 ```yaml
 context:
@@ -119,85 +97,43 @@ context:
   max_bytes: 65536
 ```
 
-Override when needed:
-
-```bash
-graph-engineering context-batch \
-  --task SPEC-011-EXECUTION-GRAPH:T044 \
-  --depth 2 \
-  --max-nodes 40 \
-  --max-bytes 32768
-```
-
-Budgets are hard bounds. If optional evidence does not fit, lower-priority evidence is deterministically truncated and the package reports `truncatedNodes`, `renderedBytes` and `truncated`. If the mandatory Task/Spec metadata cannot fit, generation fails rather than emitting an invalid package.
-
-### Regenerate after repository movement
-
-```bash
-rm -rf context-packages/*
-graph-engineering sync
-graph-engineering validate
-graph-engineering context-batch --spec SPEC-011-EXECUTION-GRAPH
-```
-
-Do not keep a stale generated package alive by manually changing its revision field.
+Regenerate after repository movement rather than editing freshness metadata manually.
 
 ## V3 Execution Graph workflow
 
-### Build a manifest
+Build a revision-bound manifest:
 
 ```bash
 graph-engineering execution-plan \
-  --spec SPEC-011-EXECUTION-GRAPH \
+  --spec <SPEC-ID> \
   --agent codex \
-  --output .execution/manifests/spec-011.json
+  --output .execution/manifests/current.json
 ```
 
-Planning is read-only with respect to Git worktrees/leases. The manifest is bound to current Git HEAD and contains READY/BLOCKED state, cycles, artifact conflicts and deterministic waves.
-
-If projected task revisions differ from HEAD, sync first:
-
-```bash
-graph-engineering sync
-graph-engineering validate
-```
-
-### Dry-run the allocation
+Dry-run:
 
 ```bash
 graph-engineering execution-prepare \
-  .execution/manifests/spec-011.json \
+  .execution/manifests/current.json \
   --wave 1 \
   --dry-run \
   --json
 ```
 
-Dry-run still builds/strictly checks V2 context from Neo4j but does not create worktrees or active leases.
-
-### Prepare one wave
+Prepare one wave:
 
 ```bash
 graph-engineering execution-prepare \
-  .execution/manifests/spec-011.json \
+  .execution/manifests/current.json \
   --wave 1
 ```
-
-Explicit task selection is allowed only when all selected tasks are contained in one manifest wave:
-
-```bash
-graph-engineering execution-prepare \
-  .execution/manifests/spec-011.json \
-  --task SPEC-011-EXECUTION-GRAPH:T044
-```
-
-Cross-wave selection fails so callers cannot bypass dependency/conflict safety.
 
 Preparation sequence:
 
 ```text
-manifest revision/repository check
+manifest repository/revision validation
         ↓
-wave/task selection validation
+wave/task conflict validation
         ↓
 active lease collision check
         ↓
@@ -210,46 +146,15 @@ Git worktree create/resume
 active lease acquisition
 ```
 
-### Inspect allocations
+Inspect/release:
 
 ```bash
-graph-engineering execution-status
 graph-engineering execution-status --json
+graph-engineering execution-release <TASK-ID>
+graph-engineering execution-release <TASK-ID> --remove-worktree
 ```
 
-The status surface reports active leases, whether the expected worktree is registered and whether it is dirty.
-
-### Work inside the allocation
-
-Use `worktreePath` as the coding working directory. Read `handoffPath`/`contextPath`, then open canonical files before editing. Never treat `.execution/` metadata as project truth.
-
-An active lease means only that the task is allocated. It does not mean the Task is started/completed in canonical `tasks.md`.
-
-### Release
-
-Release lease only:
-
-```bash
-graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T044
-```
-
-Release + remove clean worktree:
-
-```bash
-graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T044 --remove-worktree
-```
-
-Dirty worktree removal fails. Destructive cleanup is explicit:
-
-```bash
-graph-engineering execution-release SPEC-011-EXECUTION-GRAPH:T044 \
-  --remove-worktree \
-  --force
-```
-
-Worktree removal preserves the branch. V3 never commits, pushes, creates/merges PRs or changes canonical Task status automatically.
-
-### Execution root
+Dirty worktree removal fails unless explicit `--force` is supplied. V3 never commits, pushes, creates/merges PRs or changes canonical Task status automatically.
 
 Default local state:
 
@@ -261,35 +166,155 @@ engineering-graph/.execution/
 └── worktrees/
 ```
 
-The root is ignored by Git. Generated metadata is disposable, but dirty worktree contents are user data and must be inspected before cleanup.
+Generated metadata is disposable; dirty worktree contents are user data.
+
+## V4 GraphRAG workflow
+
+### 1. Synchronize deterministic graph evidence
+
+GraphRAG graph expansion depends on the current deterministic projection:
+
+```bash
+graph-engineering sync
+graph-engineering validate
+```
+
+### 2. Build the semantic sidecar index
+
+For deterministic offline/CI mechanics:
+
+```bash
+graph-engineering graphrag-build \
+  --provider hashing \
+  --output .graphrag/index.json
+```
+
+The hashing provider is a lexical feature-hashing retrieval surrogate. Use it for deterministic validation, not as a claim of learned semantic quality.
+
+For a learned embedding endpoint:
+
+```bash
+export GRAPH_RAG_EMBEDDING_URL='https://embedding-service.example/v1/embeddings'
+export GRAPH_RAG_EMBEDDING_MODEL='your-model'
+export GRAPH_RAG_EMBEDDING_API_KEY='...'
+export GRAPH_RAG_DIMENSIONS='1536'
+
+graph-engineering graphrag-build --provider http
+```
+
+The HTTP contract sends:
+
+```json
+{"model":"your-model","input":["chunk one","chunk two"]}
+```
+
+and expects ordered embedding records under `data`. Provider credentials remain process-local and are never stored in the index.
+
+### 3. Validate freshness
+
+```bash
+graph-engineering graphrag-status --provider <provider>
+graph-engineering graphrag-validate .graphrag/index.json --provider <provider> --strict
+```
+
+Strict mode fails closed on:
+
+- repository mismatch;
+- Git revision mismatch;
+- provider/model mismatch;
+- dimensions mismatch;
+- chunk/corpus configuration mismatch.
+
+Rebuild after any mismatch. `--allow-stale` on query is only for deliberate exploratory retrieval across Git revision drift; it does not make provider/model/config incompatibility valid.
+
+### 4. Query semantic seeds and deterministic graph evidence
+
+```bash
+graph-engineering graphrag-query \
+  "why does GraphRAG remain retrieval assistance?" \
+  --index .graphrag/index.json \
+  --provider hashing \
+  --mode architecture \
+  --top-k 8 \
+  --min-score 0.0 \
+  --depth 2 \
+  --max-nodes 80 \
+  --json
+```
+
+Interpret the output in three separate layers:
+
+```text
+semanticHits  = vector-ranked tracked-file chunks
+anchors       = existing graph nodes resolved by sourcePath/path
+ graphEvidence = traversal over existing deterministic relationships
+```
+
+Do not treat semantic similarity as a graph relationship. A high score only means the retriever found a similar chunk.
+
+### 5. Architecture discovery
+
+Use `--mode architecture` for ADR/spec/requirement discovery. Architecture paths are prioritized while the original semantic score remains visible.
+
+This mode does not write or infer `CONSTRAINED_BY`, `DEPENDS_ON`, `RELATED_TO`, etc. The only relationships shown as graph evidence are ones already projected from explicit Git-backed evidence.
+
+### 6. Corpus safety
+
+Only `git ls-files` paths are eligible. Then extension and excluded-prefix filters from `config.yaml` are applied.
+
+Default eligible extensions:
+
+```text
+.md .txt .py .ts .tsx .js .mjs .json .yaml .yml
+```
+
+Generated/vendor/cache prefixes are excluded, including `.graphrag`, `.execution`, ContextPackages, node modules, dist, coverage and browser-test outputs.
+
+Therefore an untracked local secret or note cannot enter the corpus merely because it exists on disk.
+
+### 7. Index lifecycle
+
+Default state:
+
+```text
+engineering-graph/.graphrag/
+└── index.json
+```
+
+The index contains a versioned manifest plus deterministic chunks/vectors. It records repository revision, provider/model, dimensions, chunk configuration and semantic SHA-256.
+
+Writes use temporary-file + fsync + atomic replace. Deleting `.graphrag/` loses no canonical knowledge.
 
 ## Single context inspection
 
-For human inspection without writing the full package directory:
+For human inspection without writing a full package directory:
 
 ```bash
-graph-engineering context SPEC-011-EXECUTION-GRAPH:T044 \
-  --format markdown
+graph-engineering context <TASK-ID> --format markdown
 ```
 
-Open the canonical source paths named in that output before editing.
+Open canonical source paths named in that output before editing.
 
 ## Impact analysis
 
 ```bash
-graph-engineering impact ADR-0019 --depth 3
-graph-engineering impact SPEC-011-EXECUTION-GRAPH:T044 --depth 3 --json
+graph-engineering impact ADR-0020 --depth 3
+graph-engineering impact SPEC-012-GRAPHRAG:T027 --depth 3 --json
 ```
 
-Depth is bounded; current CLI caps impact traversal at 5 hops and context packages use configured depth/node/byte budgets.
+Depth is bounded. Context, execution and GraphRAG surfaces all expose explicit budgets rather than permitting hidden unbounded traversal.
 
-## Querying directly
+## Querying Neo4j directly
 
-Neo4j Browser is available at `http://127.0.0.1:7474` in local Compose. Prefer the checked-in Cypher files under `engineering-graph/queries/` when a reusable query exists.
+Neo4j Browser is available at `http://127.0.0.1:7474` in local Compose. Prefer checked-in Cypher files under `engineering-graph/queries/` when a reusable query exists.
 
-Direct graph experimentation is fine for analysis. Do not manually edit nodes/edges and then treat those edits as project knowledge; the next sync may intentionally overwrite/prune them.
+Direct graph experimentation is fine for analysis. Do not manually edit nodes/edges and then treat those edits as project knowledge; sync may overwrite/prune them.
+
+GraphRAG itself performs read-only graph queries. CI compares logical graph stats before and after GraphRAG querying to enforce that boundary.
 
 ## Rebuild
+
+Rebuild deterministic graph state:
 
 ```bash
 graph-engineering reset --yes
@@ -298,17 +323,25 @@ graph-engineering sync
 graph-engineering validate
 ```
 
-Destroy local Neo4j state if desired:
+Rebuild semantic state:
+
+```bash
+rm -rf .graphrag
+graph-engineering graphrag-build --provider <provider>
+graph-engineering graphrag-validate --provider <provider> --strict
+```
+
+Destroy local Neo4j if desired:
 
 ```bash
 docker compose down -v
 ```
 
-The repository remains complete without the database.
+The Git repository remains complete without Neo4j, ContextPackages, Execution Graph metadata or GraphRAG indexes.
 
 ## Validation severities
 
-`engineering-graph/config.yaml` controls rule severity:
+`engineering-graph/config.yaml` controls deterministic graph rule severity:
 
 ```yaml
 validation:
@@ -318,37 +351,35 @@ validation:
     completed-task-no-code: warning
 ```
 
-Use `error` only for invariants the repository can deterministically prove. Do not promote a heuristic warning to a blocking error until authoring conventions make the required evidence reliable.
+Use `error` only for invariants the repository can deterministically prove. Semantic similarity is not a validator rule or canonical edge source.
 
 ## Graph-friendly Spec Kit authoring
 
 Prefer stable explicit references:
 
 ```markdown
-- [ ] T056 Extend Engineering Graph workflow `.github/workflows/engineering-graph.yml`
+- [ ] T063 Add GraphRAG CI smoke `.github/workflows/engineering-graph.yml`
 ```
 
-Use ADR references such as `ADR-0019` when a spec/plan is constrained by a durable decision. Optional frontmatter may provide machine-friendly graph metadata, but the Markdown body must remain sufficient for humans without Neo4j.
+Use ADR references such as `ADR-0020` when a spec/plan is constrained by a durable decision. Markdown remains sufficient for humans without Neo4j/GraphRAG.
 
-## Pull requests
+## Pull requests and validation order
 
-GitHub Actions can pass `$GITHUB_EVENT_PATH` into `graph-engineering sync --github-event ...`. The extractor can then project the current PR plus changed-path/task/spec evidence without using Neo4j as a PR authority.
+GitHub Actions can pass `$GITHUB_EVENT_PATH` into `graph-engineering sync --github-event ...`. PR metadata remains evidence only.
 
-The recommended PR validation order is:
+Recommended validation order:
 
 ```text
 application CI (when applicable)
 Spec Kit integration status
 Engineering Graph offline unit/integration tests
-Engineering Graph ephemeral Neo4j sync
-Engineering Graph validation/query smoke
-Agent Context package generation
-strict freshness validation
-Codex/Claude adapter smoke
-semantic package reproducibility
-Execution Graph manifest generation
-execution manifest semantic reproducibility
-worktree/lease lifecycle tests
+Engineering Graph ephemeral Neo4j sync/idempotency
+Graph validation/query smokes
+V2 ContextPackage freshness/adapters/reproducibility
+V3 ExecutionManifest/wave/worktree/lease validation
+V4 GraphRAG build/freshness/reproducibility
+V4 controlled semantic retrieval + graph anchor/expansion
+V4 before/after graph stats equality
 ```
 
 ## Troubleshooting
@@ -359,16 +390,9 @@ worktree/lease lifecycle tests
 graph-engineering doctor --wait 90
 ```
 
-Check:
+Check `docker compose ps` and `docker compose logs neo4j`.
 
-```bash
-docker compose ps
-docker compose logs neo4j
-```
-
-### Context package is stale immediately after generation
-
-Run:
+### Context package is stale
 
 ```bash
 git rev-parse HEAD
@@ -377,11 +401,9 @@ graph-engineering context-batch --task <TASK-ID>
 graph-engineering context-validate <context.json> --strict
 ```
 
-If generation reports a graph `sourceRevision` different from HEAD, the graph projection is stale. Re-sync it. Do not edit the generated package to silence freshness validation.
+Do not edit generated revision metadata.
 
 ### Execution manifest is stale
-
-Do not bypass the check. Re-sync/replan:
 
 ```bash
 graph-engineering sync
@@ -389,18 +411,37 @@ graph-engineering validate
 graph-engineering execution-plan --spec <SPEC-ID> --agent codex --output .execution/manifest.json
 ```
 
+### GraphRAG index is stale/incompatible
+
+Inspect:
+
+```bash
+graph-engineering graphrag-status --provider <provider> --json
+graph-engineering graphrag-validate --provider <provider> --strict --json
+```
+
+If revision/provider/model/dimensions/config differ, rebuild. Do not edit the index manifest/hash manually.
+
+### Learned embedding endpoint unavailable
+
+Canonical files and deterministic graph remain usable. Use `hashing` only for offline retrieval mechanics/CI if appropriate; do not represent it as equivalent learned semantic quality.
+
+### GraphRAG query has hits but no anchors
+
+The chunk can be semantically useful even when its path is not represented as a deterministic graph node. Inspect the hit path directly. Graph expansion only begins from paths represented by existing `sourcePath`/`path` graph evidence.
+
 ### Worktree release refuses cleanup
 
-Run `graph-engineering execution-status --json` and inspect the worktree directly. Normal cleanup protects dirty/untracked files. Use `--force` only when intentional data discard is acceptable.
+Run `graph-engineering execution-status --json` and inspect the worktree. Normal cleanup protects dirty/untracked files. Use `--force` only for intentional data discard.
 
-### Wrong repository id
+### Wrong repository ID
 
-The tool prefers `GRAPH_REPOSITORY_ID`, then normalized `remote.origin.url`, then the checkout directory name. CI sets `GRAPH_REPOSITORY_ID=az1nn/cpxlabs-admin` for deterministic identity.
+The tool prefers `GRAPH_REPOSITORY_ID`, then normalized `remote.origin.url`, then checkout directory name. CI pins `az1nn/cpxlabs-admin`.
 
-### Validation warning for historical specs
+### Historical validation warnings
 
-Specifications 001–004 were retrofitted after implementation. Selected missing-evidence findings are intentionally downgraded by `historical_spec_prefixes`; do not fabricate old edges to silence warnings.
+Specifications 001–004 were retrofitted after implementation. Selected evidence findings are downgraded by `historical_spec_prefixes`; do not fabricate historical edges to silence them.
 
-### Graph differs after two syncs
+### Logical graph differs after identical sync/query
 
-`sourceRevision`/`syncRunId` are provenance and may change as metadata. The logical canonical nodes/edges and counts for identical repository content must remain stable. Investigate nondeterministic extraction if logical graph shape changes.
+`sourceRevision`/`syncRunId` are provenance. Canonical graph shape/counts must remain stable for identical repository content. GraphRAG query must leave logical stats unchanged because it is read-only.

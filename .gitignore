@@ -13,7 +13,7 @@ apps/api/src/generated/prisma/
 .DS_Store
 *.local
 
-# Engineering Graph is a rebuildable projection. Never commit runtime DB state or generated execution/context state.
+# Engineering Graph is a rebuildable projection. Never commit runtime DB state or generated execution/context/retrieval state.
 engineering-graph/.venv/
 engineering-graph/.pytest_cache/
 engineering-graph/**/__pycache__/
@@ -22,3 +22,4 @@ engineering-graph/.neo4j/
 engineering-graph/out/
 engineering-graph/context-packages/
 engineering-graph/.execution/
+engineering-graph/.graphrag/

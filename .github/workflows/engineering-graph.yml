@@ -9,6 +9,7 @@ on:
       - 'docs/architecture/ENGINEERING_GRAPH.md'
       - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
       - 'docs/architecture/EXECUTION_GRAPH.md'
+      - 'docs/architecture/GRAPHRAG.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -21,6 +22,7 @@ on:
       - 'docs/architecture/ENGINEERING_GRAPH.md'
       - 'docs/architecture/AGENT_CONTEXT_GRAPH.md'
       - 'docs/architecture/EXECUTION_GRAPH.md'
+      - 'docs/architecture/GRAPHRAG.md'
       - 'docs/development/engineering-graph.md'
       - 'AGENTS.md'
       - '.specify/templates/**'
@@ -50,6 +52,7 @@ jobs:
       GRAPH_REPOSITORY_ID: az1nn/cpxlabs-admin
       CONTEXT_SPEC_ID: SPEC-010-AGENT-CONTEXT-GRAPH
       EXECUTION_SPEC_ID: SPEC-011-EXECUTION-GRAPH
+      GRAPHRAG_SPEC_ID: SPEC-012-GRAPHRAG
 
     steps:
       - name: Checkout full history
@@ -306,3 +309,83 @@ jobs:
           fi
 
           test ! -f /tmp/execution-graph-dry-run/leases.json
+
+      - name: Build V4 GraphRAG offline semantic index
+        run: |
+          graph-engineering graphrag-build \
+            --provider hashing \
+            --output /tmp/graphrag-index-1.json \
+            --json | tee /tmp/graphrag-build-1.json
+          test -f /tmp/graphrag-index-1.json
+
+      - name: Strictly validate GraphRAG index freshness
+        run: |
+          graph-engineering graphrag-validate \
+            /tmp/graphrag-index-1.json \
+            --provider hashing \
+            --strict \
+            --json | tee /tmp/graphrag-freshness.json
+
+      - name: Prove GraphRAG semantic index reproducibility
+        shell: bash
+        run: |
+          graph-engineering graphrag-build \
+            --provider hashing \
+            --output /tmp/graphrag-index-2.json \
+            --json >/tmp/graphrag-build-2.json
+          python - <<'PY'
+          from pathlib import Path
+          from engineering_graph.graphrag_index import load_semantic_index
+
+          first = load_semantic_index(Path('/tmp/graphrag-index-1.json'))
+          second = load_semantic_index(Path('/tmp/graphrag-index-2.json'))
+          if first.semantic_json() != second.semantic_json():
+              raise SystemExit('GraphRAG semantic index content changed at the same revision/config')
+          if first.manifest.semantic_sha256 != second.manifest.semantic_sha256:
+              raise SystemExit('GraphRAG semantic index hash changed at the same revision/config')
+          print(f'GraphRAG reproducible semantic hash: {first.manifest.semantic_sha256}')
+          PY
+
+      - name: Query GraphRAG and expand deterministic graph evidence
+        shell: bash
+        run: |
+          graph-engineering graphrag-query \
+            'GraphRAG semantic retrieval repository content ADR spec discovery' \
+            --index /tmp/graphrag-index-1.json \
+            --provider hashing \
+            --top-k 12 \
+            --mode architecture \
+            --depth 2 \
+            --max-nodes 80 \
+            --json | tee /tmp/graphrag-query.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('/tmp/graphrag-query.json').read_text())
+          hits = payload.get('semanticHits') or []
+          anchors = payload.get('anchors') or []
+          evidence = payload.get('graphEvidence') or []
+          if not hits:
+              raise SystemExit('GraphRAG query returned no semantic hits')
+          if not any(
+              str(item.get('sourcePath', '')).startswith('specs/012-graphrag/')
+              or str(item.get('sourcePath', '')).startswith('docs/adr/0020-')
+              for item in hits
+          ):
+              raise SystemExit('GraphRAG controlled query did not retrieve Spec 012 / ADR-0020 content')
+          anchor_ids = {str(item.get('canonicalId')) for item in anchors}
+          if not ({'SPEC-012-GRAPHRAG', 'ADR-0020'} & anchor_ids):
+              raise SystemExit('GraphRAG semantic seeds did not resolve to Spec 012 / ADR-0020 graph anchors')
+          if not evidence:
+              raise SystemExit('GraphRAG query returned no deterministic graph evidence')
+          print(
+              f"GraphRAG hits={len(hits)} anchors={len(anchors)} evidence={len(evidence)} "
+              f"truncated={payload.get('truncated')}"
+          )
+          PY
+
+      - name: Prove GraphRAG query does not mutate canonical graph vocabulary/state
+        run: |
+          graph-engineering stats --json | tee /tmp/graph-stats-after-graphrag.json
+          cmp /tmp/graph-stats-1.json /tmp/graph-stats-after-graphrag.json
