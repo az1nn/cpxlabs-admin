@@ -112,10 +112,15 @@ def register_runner_subcommands(subparsers: argparse._SubParsersAction[argparse.
         help="Start an agent process for an active V3 execution allocation",
     )
     start.add_argument("task_id")
-    start.add_argument("--command", action="append", required=True, help="One argv token; repeat in execution order")
     start.add_argument("--stdin-handoff", action="store_true")
     start.add_argument("--execution-root")
     start.add_argument("--json", action="store_true")
+    start.add_argument(
+        "--command",
+        nargs=argparse.REMAINDER,
+        required=True,
+        help="Literal argv remainder; place runner options before --command",
+    )
     start.set_defaults(func=command_runner_start)
 
     status = subparsers.add_parser(
