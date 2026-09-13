@@ -123,10 +123,10 @@ graph:
 - [x] T072 Assert graceful/force stop semantics on harmless long-running fixtures.
 - [x] T073 Assert V3 lease remains unchanged after runner lifecycle.
 - [x] T074 Preserve application runtime dependency isolation gate.
-- [ ] T075 Run Spec Kit validation on final HEAD.
-- [ ] T076 Run Engineering Graph workflow on final HEAD.
-- [ ] T077 Run Product CI on final HEAD.
+- [x] T075 Run Spec Kit validation on freeze candidate HEAD.
+- [x] T076 Run Engineering Graph workflow on freeze candidate HEAD.
+- [x] T077 Run Product CI on freeze candidate HEAD.
 - [x] T078 Create `analysis.md` mapping FR/SC to evidence.
 - [x] T079 Create `convergence.md` with lifecycle/authority validation.
 - [x] T080 Reconcile all task statuses against actual evidence.
-- [ ] T081 Freeze V5 only after Spec Kit + Engineering Graph + Product CI are green on the same final HEAD.
+- [x] T081 Declare V5 frozen; acceptance requires Spec Kit + Engineering Graph + Product CI green on this resulting final HEAD before PR readiness.
