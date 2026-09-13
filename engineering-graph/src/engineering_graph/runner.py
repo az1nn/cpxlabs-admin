@@ -22,6 +22,7 @@ RUNNER_REGISTRY_VERSION = "1"
 RESULT_VERSION = "1"
 TERMINAL_STATUSES = frozenset({"succeeded", "failed", "stopped", "orphaned"})
 RUN_STATUSES = frozenset({"running", *TERMINAL_STATUSES})
+_LOCAL_PROCESSES: dict[int, subprocess.Popen[Any]] = {}
 
 
 class RunnerError(RuntimeError):
@@ -361,6 +362,34 @@ def expand_command(argv: Iterable[str], allocation: ExecutionAllocation) -> tupl
     return tuple(expanded)
 
 
+def _proc_state(pid: int) -> str | None:
+    stat = Path(f"/proc/{pid}/stat")
+    if not stat.is_file():
+        return None
+    try:
+        value = stat.read_text(encoding="utf-8")
+        close = value.rfind(")")
+        if close < 0:
+            return None
+        fields = value[close + 2 :].split()
+        return fields[0] if fields else None
+    except OSError:
+        return None
+
+
+def _reap_local_process(pid: int | None, *, timeout: float = 0.0) -> None:
+    if pid is None:
+        return
+    process = _LOCAL_PROCESSES.get(pid)
+    if process is None:
+        return
+    try:
+        process.wait(timeout=max(timeout, 0.0))
+    except subprocess.TimeoutExpired:
+        return
+    _LOCAL_PROCESSES.pop(pid, None)
+
+
 def process_fingerprint(pid: int) -> str | None:
     stat = Path(f"/proc/{pid}/stat")
     if not stat.is_file():
@@ -378,9 +407,21 @@ def process_fingerprint(pid: int) -> str | None:
 
 
 def process_alive(pid: int) -> bool:
+    local = _LOCAL_PROCESSES.get(pid)
+    if local is not None:
+        return_code = local.poll()
+        if return_code is not None:
+            _LOCAL_PROCESSES.pop(pid, None)
+            return False
+
+    if _proc_state(pid) == "Z":
+        _reap_local_process(pid, timeout=0.0)
+        return False
+
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
+        _reap_local_process(pid, timeout=0.0)
         return False
     except PermissionError:
         return True
@@ -424,10 +465,12 @@ def refresh_run(
     root_override: Path | None = None,
 ) -> AgentRun:
     if run.terminal:
+        _reap_local_process(run.pid, timeout=0.0)
         return run
     result = _load_result(Path(run.result_path), run.run_id)
     now = _utc_now()
     if result is not None:
+        _reap_local_process(run.pid, timeout=0.2)
         status = "stopped" if run.stop_requested else ("succeeded" if result.exit_code == 0 else "failed")
         return replace(
             run,
@@ -438,6 +481,7 @@ def refresh_run(
         )
     if run.pid is not None and process_identity_matches(run):
         return run
+    _reap_local_process(run.pid, timeout=0.0)
     return replace(
         run,
         status="stopped" if run.stop_requested else "orphaned",
@@ -526,6 +570,7 @@ def start_run(
         start_new_session=True,
         close_fds=True,
     )
+    _LOCAL_PROCESSES[process.pid] = process
     fingerprint = process_fingerprint(process.pid)
     try:
         process_group_id = os.getpgid(process.pid) if hasattr(os, "getpgid") else None
