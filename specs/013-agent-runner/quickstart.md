@@ -17,18 +17,16 @@ graph-engineering execution-prepare \
 
 ## Start a local runner process
 
-Use explicit argv while developing/testing:
+Use explicit argv while developing/testing. Runner options come before `--command`; every token after `--command` is passed literally to the child argv:
 
 ```bash
 graph-engineering runner-start <TASK-ID> \
   --stdin-handoff \
-  --command python \
-  --command -c \
-  --command 'print("fixture")' \
-  --json
+  --json \
+  --command python -c 'print("fixture")'
 ```
 
-For a real coding agent, provide the installed CLI argv explicitly or configure the agent command template locally. V5 deliberately does not shell-expand command strings.
+For a real coding agent, provide the installed CLI argv explicitly. V5 deliberately does not shell-expand command strings; agent-owned flags after `--command` remain literal argv tokens.
 
 ## Inspect
 
