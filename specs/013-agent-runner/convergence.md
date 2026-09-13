@@ -1,12 +1,12 @@
 # Convergence: Agent Runner V5
 
 **Feature**: `SPEC-013-AGENT-RUNNER`  
-**Implementation anchor**: `6fd7f499becc835a16cbf993253a0893278af1fb`  
-**Status**: Converging — implementation complete, final closeout/freeze gates pending
+**Pre-freeze validation anchor**: `5c2ca3a8e609d3a960d633c4c303554d26e5d421`  
+**Status**: Freeze declared; final PR readiness is conditional on all three required workflows being green on the resulting freeze HEAD
 
 ## Conclusion
 
-Agent Runner V5 is implementation-complete against its intended authority boundary. It closes the local process-lifecycle seam after V3 `ExecutionAllocation` without acquiring authority over task selection, canonical Task state, leases, Git publication or Neo4j truth.
+Agent Runner V5 converges against its intended authority boundary. It closes the local process-lifecycle seam after V3 `ExecutionAllocation` without acquiring authority over task selection, canonical Task state, leases, Git publication or Neo4j truth.
 
 Delivered behavior:
 
@@ -24,6 +24,8 @@ Delivered behavior:
 - running/succeeded/failed/stopped/orphaned reconciliation;
 - Linux process-start fingerprinting for PID-reuse safety;
 - graceful process-group SIGTERM plus explicit force escalation;
+- local `Popen` ownership/reaping when the launcher remains alive;
+- `/proc` zombie-state handling so terminated wrappers are not misclassified as live;
 - bounded log reads;
 - `runner-start`, `runner-status`, `runner-stop`, `runner-logs`;
 - real temporary Git-worktree integration fixtures;
@@ -71,9 +73,9 @@ Target commands are persisted/executed as argv arrays with `shell=False`. Runner
 
 Start requires the expected V3 Git worktree to be registered on the allocated branch and launches the wrapper with cwd fixed to that worktree.
 
-### PID reuse
+### PID reuse and process observation
 
-Linux runs persist `/proc/<pid>/stat` process-start identity. Stop refuses to signal a PID whose current fingerprint differs from the stored one.
+Linux runs persist `/proc/<pid>/stat` process-start identity. Stop refuses to signal a PID whose current fingerprint differs from the stored one. The runner also treats `/proc` state `Z` as terminal rather than alive and reaps locally-owned wrappers through retained `Popen` handles when possible.
 
 ### Process tree termination
 
@@ -85,9 +87,12 @@ A separate-CLI integration fixture intentionally ignores SIGTERM and proves the 
 
 PASS.
 
-The child wrapper records terminal result state atomically. This allows a later CLI process to observe exit code without being the original OS parent of the target.
+The child wrapper records terminal result state atomically so a later CLI process can observe exit code without being the original OS parent of the target.
 
-Initial testing exposed a zombie-observation edge when a graceful wrapper could exit before recording terminal evidence. The wrapper now handles SIGTERM, forwards termination and records exit evidence before leaving the process lifecycle.
+Testing exposed two important lifecycle edges and both are now covered by implementation behavior:
+
+1. graceful wrapper termination must still leave recoverable terminal evidence;
+2. a dead wrapper may remain briefly visible as a Linux zombie and must not be classified as an active runner.
 
 ## State / secret convergence
 
@@ -105,27 +110,19 @@ engineering-graph/.execution/runs/
     └── result.json
 ```
 
-The state is already beneath the Git-ignored `.execution/` root and is disposable. Environment values are inherited only at process execution time and are never serialized into `AgentRun`.
-
-Because argv is intentionally recorded, documentation explicitly prohibits putting secrets directly in command argv.
+The state is beneath the Git-ignored `.execution/` root and is disposable. Environment values are inherited only at process execution time and are never serialized into `AgentRun`. Because argv is intentionally recorded, documentation explicitly prohibits putting secrets directly in command argv.
 
 ## V1–V5 compatibility
 
-PASS at the implementation anchor.
+PASS on pre-freeze anchor `5c2ca3a8e609d3a960d633c4c303554d26e5d421`:
 
-Engineering Graph #297 on `6fd7f499…` passed:
+- Spec Kit #372: success;
+- Engineering Graph #303: success;
+- Product CI #703: success.
 
-- all 102 Python unit/integration tests, including V5 real-worktree and separate-CLI force fixtures;
-- application-runtime dependency isolation;
-- ephemeral Neo4j schema/sync/idempotency/validation;
-- V1 fundamental query smokes;
-- V2 ContextPackage generation/freshness/adapters/reproducibility/disposal;
-- V3 ExecutionManifest/wave/completed-spec gates;
-- V4 GraphRAG build/freshness/reproducibility/retrieval/graph expansion/read-only stats gate.
+Engineering Graph #303 includes the complete V1–V5 suite, runtime dependency isolation, ephemeral Neo4j validation, V2 ContextPackage checks, V3 execution checks and V4 GraphRAG checks.
 
-Spec Kit #367 also passed on the same implementation anchor.
-
-Product CI #697 was still running when this convergence document was authored; final freeze will require a fresh three-domain validation on the final HEAD regardless of this initial anchor.
+Because this convergence/ledger update changes Git HEAD, the repository freeze is accepted only after the same three workflow domains are green again on the resulting final HEAD. No further repository mutation is needed after that acceptance; final run IDs may be recorded in PR metadata without changing the frozen commit.
 
 ## Test evidence
 
@@ -140,9 +137,10 @@ V5 tests cover:
 - successful exit reconciliation;
 - non-zero exit reconciliation;
 - vanished-process orphan reconciliation;
-- fingerprint mismatch safety against the current test process;
+- fingerprint mismatch safety;
 - graceful stop;
 - force escalation in separate CLI invocations with a SIGTERM-ignoring child;
+- zombie/reaping lifecycle behavior exercised by the core stop tests;
 - V3 active lease preservation after success/failure/stop;
 - runner CLI command parsing/routing/JSON surfaces.
 
@@ -162,12 +160,6 @@ The following are not V5 convergence gaps:
 
 A future supervisor/publication layer requires a new spec/ADR and must preserve the authority direction unless explicitly redesigned.
 
-## Closeout state
+## Freeze contract
 
-Implementation and analysis are complete. Before V5 is frozen and PR #21 becomes Ready for Review:
-
-1. reconcile the Spec 013 task ledger against actual evidence;
-2. run Spec Kit, Engineering Graph and Product CI on the resulting closeout HEAD;
-3. record final run IDs/HEAD;
-4. mark T081 complete only after all three are green on the same final HEAD;
-5. repeat the three gates if the freeze ledger/convergence update changes HEAD.
+`tasks.md` declares T001–T081 complete. That declaration becomes accepted only when Spec Kit, Engineering Graph and Product CI all report success for the resulting final HEAD. If any gate fails, V5 is not frozen and the failing cause must be corrected before PR readiness.
