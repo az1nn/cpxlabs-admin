@@ -10,7 +10,7 @@ graph:
 ---
 # Feature Specification: Agent Supervisor V6
 
-**Status**: In Progress
+**Status**: Ready
 
 ## Problem
 
