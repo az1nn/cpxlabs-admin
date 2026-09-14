@@ -1,14 +1,14 @@
 # AGENTS.md
 
-This repository uses GitHub Spec Kit for material feature development and a repository-local Neo4j Engineering Graph as derived navigation/context/execution/retrieval infrastructure.
+This repository uses GitHub Spec Kit for material feature development and a repository-local Neo4j Engineering Graph as derived navigation/context/execution/retrieval/process-lifecycle infrastructure.
 
 ## Source of Truth
 
 Canonical knowledge is always authored in Git-backed files: `.specify/`, `specs/`, `docs/adr/`, source code, tests and Git history. The Engineering Graph is a rebuildable deterministic projection only. Never author canonical requirements, architecture decisions, task state, implementation evidence or test evidence directly in Neo4j.
 
-Generated Agent Context Graph packages, Execution Graph manifests, leases, handoffs, GraphRAG semantic indexes, similarity scores and GraphRAG result packages are derived and disposable. They are navigation/execution/retrieval maps tied to repository/provider state, not canonical documentation.
+Generated Agent Context Graph packages, Execution Graph manifests, leases, handoffs, GraphRAG semantic indexes/scores/results, and Agent Runner process records/logs are derived and disposable. They are navigation/execution/retrieval/process-observation maps tied to repository/provider/process state, not canonical documentation.
 
-If Neo4j or GraphRAG is unavailable, continue from the canonical files. Tooling unavailability may reduce planning/context/execution/retrieval automation but MUST NOT block application runtime or change business behavior.
+If Neo4j, GraphRAG or Agent Runner is unavailable, continue from the canonical files. Tooling unavailability may reduce planning/context/execution/retrieval/process automation but MUST NOT block application runtime or change business behavior.
 
 ## Start Here
 
@@ -36,9 +36,10 @@ graph-engineering waves --spec <SPEC_CANONICAL_ID>
 graph-engineering execution-plan --spec <SPEC_CANONICAL_ID> --agent codex --output .execution/manifest.json
 graph-engineering graphrag-build --provider hashing
 graph-engineering graphrag-query "<NATURAL-LANGUAGE QUERY>" --provider hashing --mode architecture
+graph-engineering runner-status --json
 ```
 
-Treat graph and GraphRAG results as derived evidence. Before editing, follow returned `sourcePath`/`path` references to the canonical files.
+Treat graph, GraphRAG and runner results as derived evidence. Before editing, follow returned `sourcePath`/`path`/handoff references to the canonical files.
 
 ## Agent Context Package Workflow
 
@@ -69,7 +70,7 @@ Prefer semantic handoff boundaries: completed feature/PR group, Spec Kit phase, 
 
 When the policy reaches RED, explicitly recommend a new chat and generate a `SESSION_HANDOFF.md` from `docs/ai/session-handoff-template.md`. The handoff must summarize final state, identify superseded decisions, point to canonical Git-backed artifacts, record freshness risks, and provide one exact `Next Action`.
 
-A new chat must validate repository freshness and re-read the bounded canonical artifacts it needs. `SESSION_HANDOFF.md`, chat history, ContextPackages, graph projections, execution manifests and GraphRAG results are derived context and never override Git-backed source of truth.
+A new chat must validate repository freshness and re-read the bounded canonical artifacts it needs. `SESSION_HANDOFF.md`, chat history, ContextPackages, graph projections, execution manifests, GraphRAG results and Agent Runner records/logs are derived context and never override Git-backed source of truth.
 
 ## Execution Graph Workflow
 
@@ -174,6 +175,65 @@ Rules:
 
 If GraphRAG is unavailable or an embedding endpoint fails, use canonical files and deterministic graph queries directly rather than treating retrieval failure as missing project knowledge.
 
+## Agent Runner Workflow
+
+V5 Agent Runner may execute one local coding-agent process only for an already-active V3 allocation. It is process-lifecycle infrastructure, not task authority or Git publication authority.
+
+Before launch:
+
+```bash
+graph-engineering execution-status --json
+```
+
+The allocation must have a current active lease, current source revision, the expected registered Git worktree/branch and an existing generated handoff.
+
+Start a run:
+
+```bash
+graph-engineering runner-start <TASK-ID> \
+  --stdin-handoff \
+  --json \
+  --command <agent-executable> <agent-argv...>
+```
+
+All V5 options must appear before `--command`; every token after `--command` is literal child argv. The runner uses `shell=False` and forces child cwd to the V3 `worktreePath`.
+
+Supported token-local placeholders are `{task_id}`, `{spec_id}`, `{worktree}`, `{handoff}`, `{context}`, `{branch}` and `{source_revision}`. They are not shell expressions.
+
+Inspect:
+
+```bash
+graph-engineering runner-status --task <TASK-ID>
+graph-engineering runner-logs <TASK-ID> --stream both
+```
+
+Stop:
+
+```bash
+graph-engineering runner-stop <TASK-ID>
+graph-engineering runner-stop <TASK-ID> --force
+```
+
+Rules:
+
+- runner state (`running`, `succeeded`, `failed`, `stopped`, `orphaned`) is process observation only;
+- `exitCode=0` does not mean the Spec Kit Task is complete;
+- never update `tasks.md` based only on runner status;
+- V5 never commits, pushes, opens/reviews/merges PRs or edits canonical Task state;
+- V5 never creates worktrees or leases; those remain V3 responsibilities;
+- V5 never automatically releases a V3 lease after process exit/stop;
+- release remains explicit with `graph-engineering execution-release <TASK-ID>` after review/decision;
+- runner records/logs under `.execution/runs/` are disposable and must not be edited as project knowledge;
+- do not put secrets in argv because argv is intentionally recorded;
+- environment values may be inherited by the child but are never serialized into `AgentRun` metadata;
+- before signaling, V5 validates process identity; a PID/fingerprint mismatch must fail closed rather than risk terminating an unrelated process;
+- use `--force` only for explicit process termination escalation, never as a way to bypass identity checks;
+- if the allocation revision/worktree/handoff is stale, re-plan/re-prepare with V3 rather than bypassing runner checks.
+
+V5 CI uses only harmless local Python fixture processes; never add real Codex/Claude/networked-agent invocation to required CI.
+
+See `docs/architecture/AGENT_RUNNER.md` and ADR-0021.
+
 ## Spec Kit Commands
 
 Codex is the versioned default integration and uses native skills:
@@ -196,13 +256,14 @@ Specifications `001` through `004` are historical retrofits. New feature work st
 Stable explicit references improve deterministic graph quality. Prefer these conventions when they are known during authoring:
 
 - keep Spec Kit requirement IDs (`FR-###`, `SC-###`) and task IDs (`T###`) stable inside a feature;
-- reference ADRs by stable ID such as `ADR-0020`;
+- reference ADRs by stable ID such as `ADR-0021`;
 - place repository paths in backticks when a task is expected to change or validate a concrete file;
 - express real task dependencies explicitly with `depends: T001,T002` instead of relying on phase ordering;
 - optional YAML frontmatter may add graph metadata, but must remain readable and useful without Neo4j;
-- never add a graph edge merely because an AI model or semantic retriever considers two concepts similar.
+- never add a graph edge merely because an AI model or semantic retriever considers two concepts similar;
+- never infer canonical Task state from Agent Runner process state.
 
-The graph canonicalizes local IDs under the parent spec, e.g. `SPEC-012-GRAPHRAG:T001`, so task IDs can remain human-friendly in `tasks.md`.
+The graph canonicalizes local IDs under the parent spec, e.g. `SPEC-013-AGENT-RUNNER:T001`, so task IDs can remain human-friendly in `tasks.md`.
 
 ## Architecture Rules
 
@@ -214,10 +275,11 @@ The graph canonicalizes local IDs under the parent spec, e.g. `SPEC-012-GRAPHRAG
 - Authorization UI checks are UX only. Server authorization is authoritative and deny-by-default.
 - Add a package only when there is a concrete reuse/boundary need; avoid premature internal frameworks.
 - Structural/cross-cutting decisions require an ADR.
-- No application package may import the Neo4j driver, `engineering_graph`, GraphRAG provider code or generated semantic state; Graph Engineering belongs to development/CI tooling only.
+- No application package may import the Neo4j driver, `engineering_graph`, GraphRAG provider code, Agent Runner code or generated graph/retrieval/process state; Graph Engineering belongs to development/CI tooling only.
 - Agent adapters consume portable ContextPackage files; they do not implement independent graph traversal or write canonical project knowledge.
 - Execution Graph worktrees/leases are derived local orchestration state; they do not replace canonical Task status or branch/PR review authority.
 - GraphRAG vectors/scores/results are derived retrieval state; they do not expand the canonical graph vocabulary or replace deterministic evidence.
+- Agent Runner records/logs/status are derived local process observations; they do not replace Task status, test/review evidence, lease authority or Git history.
 
 ## Graph-Assisted Planning
 
@@ -230,9 +292,10 @@ For material work after `tasks.md` exists:
 5. generate/validate a bounded ContextPackage before assigning implementation work, or let `execution-prepare` do this as part of allocation;
 6. optionally use a fresh GraphRAG index to discover relevant canonical files/ADRs/specs that are difficult to locate by ID/path;
 7. open canonical files and rely on deterministic graph edges for dependency/authority claims;
-8. re-sync/replan/rebuild derived context after task/spec/ADR/code/test/PR or Git revision changes.
+8. optionally use V5 only after V3 has prepared an active allocation, and treat the resulting run status as process evidence only;
+9. re-sync/replan/rebuild derived context after task/spec/ADR/code/test/PR or Git revision changes.
 
-A generated execution wave or semantic retrieval result is evidence/navigation, not authority to bypass branch/PR ownership, CI, review or the Spec Kit lifecycle.
+A generated execution wave, semantic retrieval result or runner status is evidence/navigation/observation, not authority to bypass branch/PR ownership, CI, review or the Spec Kit lifecycle.
 
 ## Quality Gates
 
@@ -259,9 +322,10 @@ graph-engineering sync
 graph-engineering validate
 graph-engineering graphrag-build --provider hashing
 graph-engineering graphrag-validate --provider hashing --strict
+graph-engineering runner-status --json
 ```
 
-Keep `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` enabled. Critical HTTP/database journeys must remain covered against the real reference API and PostgreSQL where applicable. Graph/GraphRAG validation supplements but never replaces application tests.
+Keep `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` enabled. Critical HTTP/database journeys must remain covered against the real reference API and PostgreSQL where applicable. Graph/GraphRAG/Runner validation supplements but never replaces application tests.
 
 ## Pull Requests
 
@@ -275,6 +339,6 @@ A material PR should include:
 
 When Graph Engineering is available, the PR should also be syncable into the graph so `PR -> Task -> Spec -> Requirement` and `PR -> CodeArtifact/Test` evidence can be queried where explicit identifiers/changed paths support those edges.
 
-GraphRAG may help locate relevant files/ADRs/specs for review, but retrieval output itself is not implementation or validation evidence unless the canonical paths/graph relations are verified.
+GraphRAG may help locate relevant files/ADRs/specs for review, but retrieval output itself is not implementation or validation evidence unless the canonical paths/graph relations are verified. Agent Runner exit/status is likewise not implementation completion evidence on its own.
 
 Implementation that diverges materially from the spec/plan must update those artifacts before merge.

@@ -4,9 +4,9 @@
 
 Use Neo4j as a local/CI engineering projection over the repository to answer traceability, impact, drift, agent-context, execution and semantic-discovery questions without moving canonical project knowledge out of Git.
 
-V2 Agent Context Graph adds revision-aware disposable ContextPackages. V3 Execution Graph composes those packages with the task planner to produce conflict-safe waves and isolated Git worktrees. V4 GraphRAG adds a revision/provider-bound semantic sidecar index that discovers repository content and then expands only through existing deterministic Neo4j relationships.
+V2 Agent Context Graph adds revision-aware disposable ContextPackages. V3 Execution Graph composes those packages with the task planner to produce conflict-safe waves and isolated Git worktrees. V4 GraphRAG adds a revision/provider-bound semantic sidecar index that discovers repository content and then expands only through existing deterministic Neo4j relationships. V5 Agent Runner consumes an already-active V3 allocation to start and observe one local child-process lifecycle inside the allocated worktree.
 
-Generated packages, manifests, leases, semantic indexes and retrieval results are operational artifacts, not canonical documentation.
+Generated packages, manifests, leases, semantic indexes, retrieval results, runner metadata and runner logs are operational artifacts, not canonical documentation.
 
 ## Prerequisites
 
@@ -14,6 +14,7 @@ Generated packages, manifests, leases, semantic indexes and retrieval results ar
 - Docker / Docker Compose
 - Git checkout with repository history
 - optional learned embedding HTTP endpoint for production-quality semantic retrieval
+- optional locally installed/authenticated coding-agent CLI for real V5 runs
 
 ## First run
 
@@ -120,7 +121,7 @@ graph-engineering execution-prepare \
   --json
 ```
 
-Prepare one wave:
+Prepare one wave/task:
 
 ```bash
 graph-engineering execution-prepare \
@@ -245,9 +246,9 @@ graph-engineering graphrag-query \
 Interpret the output in three separate layers:
 
 ```text
-semanticHits  = vector-ranked tracked-file chunks
-anchors       = existing graph nodes resolved by sourcePath/path
- graphEvidence = traversal over existing deterministic relationships
+semanticHits   = vector-ranked tracked-file chunks
+anchors        = existing graph nodes resolved by sourcePath/path
+graphEvidence  = traversal over existing deterministic relationships
 ```
 
 Do not treat semantic similarity as a graph relationship. A high score only means the retriever found a similar chunk.
@@ -262,15 +263,7 @@ This mode does not write or infer `CONSTRAINED_BY`, `DEPENDS_ON`, `RELATED_TO`, 
 
 Only `git ls-files` paths are eligible. Then extension and excluded-prefix filters from `config.yaml` are applied.
 
-Default eligible extensions:
-
-```text
-.md .txt .py .ts .tsx .js .mjs .json .yaml .yml
-```
-
-Generated/vendor/cache prefixes are excluded, including `.graphrag`, `.execution`, ContextPackages, node modules, dist, coverage and browser-test outputs.
-
-Therefore an untracked local secret or note cannot enter the corpus merely because it exists on disk.
+Generated/vendor/cache prefixes are excluded, including `.graphrag`, `.execution`, ContextPackages, node modules, dist, coverage and browser-test outputs. Therefore an untracked local secret or note cannot enter the corpus merely because it exists on disk.
 
 ### 7. Index lifecycle
 
@@ -285,6 +278,122 @@ The index contains a versioned manifest plus deterministic chunks/vectors. It re
 
 Writes use temporary-file + fsync + atomic replace. Deleting `.graphrag/` loses no canonical knowledge.
 
+## V5 Agent Runner workflow
+
+V5 starts only after V3 has prepared and leased a Task. It does not allocate work itself.
+
+### 1. Confirm the allocation
+
+```bash
+graph-engineering execution-status --json
+```
+
+The task must have an active lease and its allocation must still match current Git HEAD. If the allocation is stale, re-sync/re-plan/re-prepare; do not bypass V5 revision checks.
+
+### 2. Start the process
+
+Put all V5 options before `--command`. Everything after `--command` becomes literal child argv:
+
+```bash
+graph-engineering runner-start <TASK-ID> \
+  --stdin-handoff \
+  --json \
+  --command <agent-executable> <agent-arg-1> <agent-arg-2>
+```
+
+The child is launched with:
+
+```text
+shell=False
+cwd=<allocation.worktreePath>
+new process session/group
+```
+
+Supported token-local placeholders:
+
+```text
+{task_id}
+{spec_id}
+{worktree}
+{handoff}
+{context}
+{branch}
+{source_revision}
+```
+
+No shell interpolation, command substitution, globbing or redirection is performed.
+
+When `--stdin-handoff` is used, the generated V2/V3 handoff bytes are sent directly to child stdin.
+
+### 3. Observe status
+
+```bash
+graph-engineering runner-status --task <TASK-ID>
+graph-engineering runner-status --json
+```
+
+States are process observations:
+
+```text
+running
+succeeded
+failed
+stopped
+orphaned
+```
+
+`status=succeeded` / `exitCode=0` does **not** mean the Spec Kit Task is complete. Review implementation/tests and update canonical task evidence separately.
+
+### 4. Inspect bounded logs
+
+```bash
+graph-engineering runner-logs <TASK-ID> --stream stdout
+graph-engineering runner-logs <TASK-ID> --stream stderr
+graph-engineering runner-logs <TASK-ID> --stream both --max-bytes 65536 --json
+```
+
+Logs are derived local state. `runner-logs` only reads log files; it does not execute repository code.
+
+### 5. Stop safely
+
+```bash
+graph-engineering runner-stop <TASK-ID>
+```
+
+Normal stop validates process identity and sends graceful SIGTERM to the recorded process group. Force escalation is explicit:
+
+```bash
+graph-engineering runner-stop <TASK-ID> --timeout 5 --force
+```
+
+On Linux the stored process fingerprint includes `/proc/<pid>/stat` start identity. If the PID now belongs to a different process, V5 refuses to signal it.
+
+### 6. Lease remains independent
+
+Runner termination never releases the V3 lease automatically:
+
+```bash
+graph-engineering execution-release <TASK-ID>
+```
+
+This separation is deliberate: process completion is not equivalent to task/review completion.
+
+### 7. Runner state
+
+```text
+engineering-graph/.execution/runs/
+├── registry.json
+└── <run-id>/
+    ├── run.json
+    ├── stdout.log
+    ├── stderr.log
+    └── result.json
+```
+
+Runner state is versioned, local, Git-ignored and disposable. Environment values are never serialized. Do not place secrets in argv because argv is intentionally recorded for reproducibility.
+
+See `docs/architecture/AGENT_RUNNER.md` and ADR-0021.
+
 ## Single context inspection
 
 For human inspection without writing a full package directory:
@@ -298,8 +407,8 @@ Open canonical source paths named in that output before editing.
 ## Impact analysis
 
 ```bash
-graph-engineering impact ADR-0020 --depth 3
-graph-engineering impact SPEC-012-GRAPHRAG:T027 --depth 3 --json
+graph-engineering impact ADR-0021 --depth 3
+graph-engineering impact SPEC-013-AGENT-RUNNER:T031 --depth 3 --json
 ```
 
 Depth is bounded. Context, execution and GraphRAG surfaces all expose explicit budgets rather than permitting hidden unbounded traversal.
@@ -310,7 +419,7 @@ Neo4j Browser is available at `http://127.0.0.1:7474` in local Compose. Prefer c
 
 Direct graph experimentation is fine for analysis. Do not manually edit nodes/edges and then treat those edits as project knowledge; sync may overwrite/prune them.
 
-GraphRAG itself performs read-only graph queries. CI compares logical graph stats before and after GraphRAG querying to enforce that boundary.
+GraphRAG itself performs read-only graph queries. Agent Runner state is not written to Neo4j at all.
 
 ## Rebuild
 
@@ -331,37 +440,29 @@ graph-engineering graphrag-build --provider <provider>
 graph-engineering graphrag-validate --provider <provider> --strict
 ```
 
+Discard only runner observation state:
+
+```bash
+rm -rf .execution/runs
+```
+
+This does not release leases or remove worktrees. Inspect V3 state separately before cleanup.
+
 Destroy local Neo4j if desired:
 
 ```bash
 docker compose down -v
 ```
 
-The Git repository remains complete without Neo4j, ContextPackages, Execution Graph metadata or GraphRAG indexes.
+The Git repository remains complete without Neo4j, ContextPackages, Execution Graph metadata, GraphRAG indexes or Agent Runner records/logs.
 
 ## Validation severities
 
-`engineering-graph/config.yaml` controls deterministic graph rule severity:
-
-```yaml
-validation:
-  rules:
-    enforced-spec-no-task: error
-    task-dependency-cycle: error
-    completed-task-no-code: warning
-```
-
-Use `error` only for invariants the repository can deterministically prove. Semantic similarity is not a validator rule or canonical edge source.
+`engineering-graph/config.yaml` controls deterministic graph rule severity. Use `error` only for invariants the repository can deterministically prove. Semantic similarity and process lifecycle observations are not validator rules or canonical edge sources.
 
 ## Graph-friendly Spec Kit authoring
 
-Prefer stable explicit references:
-
-```markdown
-- [ ] T063 Add GraphRAG CI smoke `.github/workflows/engineering-graph.yml`
-```
-
-Use ADR references such as `ADR-0020` when a spec/plan is constrained by a durable decision. Markdown remains sufficient for humans without Neo4j/GraphRAG.
+Prefer stable explicit references and repository paths. Use ADR references such as `ADR-0021` when a spec/plan is constrained by a durable decision. Markdown remains sufficient for humans without Neo4j/GraphRAG/Runner state.
 
 ## Pull requests and validation order
 
@@ -380,7 +481,12 @@ V3 ExecutionManifest/wave/worktree/lease validation
 V4 GraphRAG build/freshness/reproducibility
 V4 controlled semantic retrieval + graph anchor/expansion
 V4 before/after graph stats equality
+V5 harmless local runner lifecycle tests
+V5 worktree cwd + stdin handoff + logs + terminal status assertions
+V5 duplicate-run/stop/PID-safety + lease-preservation assertions
 ```
+
+V5 CI uses local Python fixture processes only. It never invokes a networked coding agent.
 
 ## Troubleshooting
 
@@ -403,7 +509,7 @@ graph-engineering context-validate <context.json> --strict
 
 Do not edit generated revision metadata.
 
-### Execution manifest is stale
+### Execution manifest/allocation is stale
 
 ```bash
 graph-engineering sync
@@ -411,9 +517,9 @@ graph-engineering validate
 graph-engineering execution-plan --spec <SPEC-ID> --agent codex --output .execution/manifest.json
 ```
 
-### GraphRAG index is stale/incompatible
+Re-prepare the task after repository movement rather than bypassing revision checks.
 
-Inspect:
+### GraphRAG index is stale/incompatible
 
 ```bash
 graph-engineering graphrag-status --provider <provider> --json
@@ -430,6 +536,26 @@ Canonical files and deterministic graph remain usable. Use `hashing` only for of
 
 The chunk can be semantically useful even when its path is not represented as a deterministic graph node. Inspect the hit path directly. Graph expansion only begins from paths represented by existing `sourcePath`/`path` graph evidence.
 
+### Runner refuses to start
+
+Check:
+
+```bash
+graph-engineering execution-status --json
+git rev-parse HEAD
+graph-engineering runner-status --task <TASK-ID> --json
+```
+
+Common causes are no active V3 lease, stale allocation revision, missing/unregistered worktree, missing handoff or an existing non-terminal run.
+
+### Runner refuses to stop because identity changed
+
+Do not bypass the check. Inspect the recorded PID/fingerprint and current OS process manually. PID reuse is precisely the condition the fail-closed behavior is protecting against.
+
+### Runner exited but lease is still active
+
+Expected. V5 never infers Task completion and never releases a lease automatically. Review the work, then explicitly release with `execution-release` when appropriate.
+
 ### Worktree release refuses cleanup
 
 Run `graph-engineering execution-status --json` and inspect the worktree. Normal cleanup protects dirty/untracked files. Use `--force` only for intentional data discard.
@@ -444,4 +570,4 @@ Specifications 001–004 were retrofitted after implementation. Selected evidenc
 
 ### Logical graph differs after identical sync/query
 
-`sourceRevision`/`syncRunId` are provenance. Canonical graph shape/counts must remain stable for identical repository content. GraphRAG query must leave logical stats unchanged because it is read-only.
+`sourceRevision`/`syncRunId` are provenance. Canonical graph shape/counts must remain stable for identical repository content. GraphRAG query must leave logical stats unchanged because it is read-only; Agent Runner must not modify Neo4j at all.

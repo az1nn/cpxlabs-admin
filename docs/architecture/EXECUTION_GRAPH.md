@@ -170,9 +170,9 @@ Rejected unless explicit force.
 
 Execution planning/context preparation degrades; product runtime remains unaffected.
 
-## Agent runner seam
+## Agent Runner integration
 
-`ExecutionAllocation` exposes everything a future runner needs:
+`ExecutionAllocation` is the stable handoff from V3 into V5 Agent Runner. It exposes:
 
 - task ID;
 - source revision;
@@ -182,8 +182,22 @@ Execution planning/context preparation degrades; product runtime remains unaffec
 - handoff path;
 - validation commands.
 
-V3 deliberately stops before long-running agent supervision, commit, push, PR or merge automation.
+V5 consumes only an **active** V3 allocation. It validates repository/revision/worktree/handoff identity, then starts and observes one local process inside the allocated worktree. V5 does not select tasks, create worktrees, acquire/release leases, infer Task completion or publish Git changes.
+
+The relationship is intentionally one-way:
+
+```text
+V3 ExecutionAllocation + active lease
+                │
+                ▼
+        V5 Agent Runner process
+                │
+                ▼
+      derived run metadata/logs
+```
+
+Runner process state never flows back into canonical Task state automatically. See `docs/architecture/AGENT_RUNNER.md` and ADR-0021.
 
 ## Future extension
 
-V4 GraphRAG may enrich V2 retrieval before ContextPackage assembly. A later runner may consume V3 allocations for process lifecycle. Neither future layer may invert the authority model or make Neo4j/generated state canonical.
+V4 GraphRAG enriches repository discovery without becoming graph authority. V5 Agent Runner closes the local process-lifecycle seam. A later supervisor may coordinate multiple V5 runs/waves, retries or validation sequencing, but it must not invert the authority model or make Neo4j/generated process state canonical without a separate ADR/spec.

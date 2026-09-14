@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-graph-engineering = "engineering_graph.cli:main"
+graph-engineering = "engineering_graph.runner_entry:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
