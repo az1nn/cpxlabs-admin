@@ -1,7 +1,7 @@
 # Feature Specification: Git Publisher V8
 
 **Spec ID**: `SPEC-016-GIT-PUBLISHER`
-**Status**: Active
+**Status**: Ready
 
 ## Problem
 
