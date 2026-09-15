@@ -29,7 +29,23 @@ Rules:
 - `passed` requires every frozen command to pass and the publishable workspace revision/fingerprint to remain stable before/after validation;
 - `.execution/validation/` is derived disposable state, never canonical project knowledge;
 - validation success never edits `tasks.md`, releases leases, removes worktrees, commits, pushes, opens/reviews/merges PRs or mutates Neo4j;
-- after any publishable workspace change, old validation evidence is stale for publication purposes and validation must run again;
-- publication automation requires its own future Spec Kit feature and ADR.
+- after any publishable workspace change, old validation evidence is stale for publication purposes and validation must run again.
 
 See `docs/architecture/AGENT_VALIDATOR.md` and ADR-0023.
+
+## Git Publisher V8
+
+V8 is the next authority tier after V7. It may publish only an exact current workspace already proven by an explicit passed V7 record.
+
+Rules:
+
+- require exact allocation/validation/worktree/branch identity before mutation;
+- fail closed on workspace fingerprint drift;
+- preserve a durable publication phase record after each irreversible step;
+- never rewrite remote history;
+- resume from a recorded commit instead of creating a duplicate commit;
+- detect an existing open PR for the exact branch/base pair before creating another;
+- publication success does not mark tasks complete, release leases, remove worktrees, merge/approve PRs, or mutate Neo4j;
+- `.execution/publication/` is derived disposable evidence.
+
+See `docs/architecture/GIT_PUBLISHER.md` and ADR-0024.
