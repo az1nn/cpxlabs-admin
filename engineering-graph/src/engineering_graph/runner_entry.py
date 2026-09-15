@@ -7,12 +7,14 @@ from typing import Sequence
 from . import cli as legacy_cli
 from .runner_cli import register_runner_subcommands
 from .supervisor_cli import register_supervisor_subcommands
+from .validation_cli import register_validation_subcommands
 
 RUNNER_COMMANDS = frozenset({"runner-start", "runner-status", "runner-stop", "runner-logs"})
 SUPERVISOR_COMMANDS = frozenset(
     {"supervisor-start", "supervisor-tick", "supervisor-status", "supervisor-stop"}
 )
-LOCAL_COMMANDS = RUNNER_COMMANDS | SUPERVISOR_COMMANDS
+VALIDATION_COMMANDS = frozenset({"validation-run", "validation-status"})
+LOCAL_COMMANDS = RUNNER_COMMANDS | SUPERVISOR_COMMANDS | VALIDATION_COMMANDS
 
 
 def _command_token(argv: Sequence[str]) -> str | None:
@@ -38,6 +40,7 @@ def _runner_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     register_runner_subcommands(subparsers)
     register_supervisor_subcommands(subparsers)
+    register_validation_subcommands(subparsers)
     return parser
 
 
