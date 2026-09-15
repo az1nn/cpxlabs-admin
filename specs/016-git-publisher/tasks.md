@@ -74,8 +74,8 @@ graph:
 - [x] T053 Test commit -> push -> PR state transitions.
 - [x] T054 Test stale workspace rejection before mutation.
 - [x] T055 Test resume does not create duplicate commit.
-- [ ] T056 Re-run full V1–V7 Engineering Graph suite.
-- [ ] T057 Run Spec Kit validation on implementation candidate HEAD.
-- [ ] T058 Run Engineering Graph workflow on implementation candidate HEAD.
-- [ ] T059 Run Product CI on implementation candidate HEAD.
-- [ ] T060 Create analysis/convergence evidence and declare final V8 freeze candidate.
+- [x] T056 Re-run full V1–V7 Engineering Graph suite.
+- [x] T057 Run Spec Kit validation on implementation candidate HEAD.
+- [x] T058 Run Engineering Graph workflow on implementation candidate HEAD.
+- [x] T059 Run Product CI on implementation candidate HEAD.
+- [x] T060 Create analysis/convergence evidence and declare final V8 freeze candidate.
