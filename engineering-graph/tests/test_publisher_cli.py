@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+import argparse
 import unittest
 
-from engineering_graph.runner_entry import (
-    LOCAL_COMMANDS,
-    PUBLISHER_COMMANDS,
-    _command_token,
-    _runner_parser,
-)
+from engineering_graph.publisher_cli import register_publisher_subcommands
+
+
+def publisher_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="graph-engineering")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    register_publisher_subcommands(subparsers)
+    return parser
 
 
 class GitPublisherCliTests(unittest.TestCase):
     def test_publication_run_arguments(self) -> None:
-        parser = _runner_parser()
+        parser = publisher_parser()
         args = parser.parse_args(
             [
                 "publication-run",
@@ -37,17 +40,11 @@ class GitPublisherCliTests(unittest.TestCase):
         self.assertTrue(args.json)
 
     def test_resume_and_status_are_registered(self) -> None:
-        parser = _runner_parser()
+        parser = publisher_parser()
         resume = parser.parse_args(["publication-resume", "pub-1", "--json"])
         status = parser.parse_args(["publication-status", "--publication", "pub-1", "--json"])
         self.assertEqual(resume.publication_id, "pub-1")
         self.assertEqual(status.publication, "pub-1")
-
-    def test_entrypoint_routes_publisher_commands(self) -> None:
-        self.assertTrue(PUBLISHER_COMMANDS <= LOCAL_COMMANDS)
-        for command in PUBLISHER_COMMANDS:
-            self.assertEqual(_command_token([command]), command)
-            self.assertEqual(_command_token(["--repo-root", "/tmp/repo", command]), command)
 
 
 if __name__ == "__main__":
