@@ -6,8 +6,13 @@ from typing import Sequence
 
 from . import cli as legacy_cli
 from .runner_cli import register_runner_subcommands
+from .supervisor_cli import register_supervisor_subcommands
 
 RUNNER_COMMANDS = frozenset({"runner-start", "runner-status", "runner-stop", "runner-logs"})
+SUPERVISOR_COMMANDS = frozenset(
+    {"supervisor-start", "supervisor-tick", "supervisor-status", "supervisor-stop"}
+)
+LOCAL_COMMANDS = RUNNER_COMMANDS | SUPERVISOR_COMMANDS
 
 
 def _command_token(argv: Sequence[str]) -> str | None:
@@ -32,12 +37,13 @@ def _runner_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", help="Repository root (auto-discovered by default)")
     subparsers = parser.add_subparsers(dest="command", required=True)
     register_runner_subcommands(subparsers)
+    register_supervisor_subcommands(subparsers)
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     values = list(argv if argv is not None else sys.argv[1:])
-    if _command_token(values) not in RUNNER_COMMANDS:
+    if _command_token(values) not in LOCAL_COMMANDS:
         return legacy_cli.main(values)
     parser = _runner_parser()
     args = parser.parse_args(values)
