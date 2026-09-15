@@ -34,46 +34,46 @@ graph:
 
 ## Phase 2 — Evidence and persistence
 
-- [ ] T010 Add publication schema/version/status constants and errors.
-- [ ] T011 Add atomic publication-record persistence under `.execution/publication/records/`.
-- [ ] T012 Validate active V3 allocation + exact passed V7 validation identity.
-- [ ] T013 Reject stale current workspace revision/fingerprint before mutation.
-- [ ] T014 Reject duplicate successful publication for one validation id.
+- [x] T010 Add publication schema/version/status constants and errors.
+- [x] T011 Add atomic publication-record persistence under `.execution/publication/records/`.
+- [x] T012 Validate active V3 allocation + exact passed V7 validation identity.
+- [x] T013 Reject stale current workspace revision/fingerprint before mutation.
+- [x] T014 Reject duplicate successful publication for one validation id.
 
 ## Phase 3 — Git commit/push
 
-- [ ] T020 Validate `origin` repository identity and allocation branch.
-- [ ] T021 Stage the exact current validated workspace with argv Git execution.
-- [ ] T022 Reject empty staged publication.
-- [ ] T023 Commit once and persist the exact commit SHA.
-- [ ] T024 Verify commit parent/worktree cleanliness.
-- [ ] T025 Push allocation branch to origin without force and persist pushed state.
+- [x] T020 Validate `origin` repository identity and allocation branch.
+- [x] T021 Stage the exact current validated workspace with argv Git execution.
+- [x] T022 Reject empty staged publication.
+- [x] T023 Commit once and persist the exact commit SHA.
+- [x] T024 Verify commit parent/worktree cleanliness.
+- [x] T025 Push allocation branch to origin without force and persist pushed state.
 
 ## Phase 4 — Pull request and recovery
 
-- [ ] T030 Open GitHub PR with explicit base/head/title/body using `gh` argv.
-- [ ] T031 Persist PR URL and `pr_opened` terminal publication state.
-- [ ] T032 Add failure phase/error persistence.
-- [ ] T033 Add resume from commit/push/PR partial states without duplicate commit.
-- [ ] T034 Refuse resume when recorded commit/branch/worktree identity drifted.
+- [x] T030 Open GitHub PR with explicit base/head/title/body using `gh` argv.
+- [x] T031 Persist PR URL and `pr_opened` terminal publication state.
+- [x] T032 Add failure phase/error persistence.
+- [x] T033 Add resume from commit/push/PR partial states without duplicate commit.
+- [x] T034 Refuse resume when recorded commit/branch/worktree identity drifted.
 
 ## Phase 5 — CLI/docs
 
-- [ ] T040 Add `publication-run` command.
-- [ ] T041 Add `publication-resume` command.
-- [ ] T042 Add `publication-status` command.
-- [ ] T043 Route V8 commands through local composed entrypoint.
-- [ ] T044 Add `docs/architecture/GIT_PUBLISHER.md`.
-- [ ] T045 Update scoped Engineering Graph agent instructions.
+- [x] T040 Add `publication-run` command.
+- [x] T041 Add `publication-resume` command.
+- [x] T042 Add `publication-status` command.
+- [x] T043 Route V8 commands through local composed entrypoint.
+- [x] T044 Add `docs/architecture/GIT_PUBLISHER.md`.
+- [x] T045 Update scoped Engineering Graph agent instructions.
 
 ## Phase 6 — Validation/convergence
 
-- [ ] T050 Test record/evidence/remote/branch invariants.
-- [ ] T051 Test CLI parser/routing.
-- [ ] T052 Test no-shell/no-force command construction.
-- [ ] T053 Test commit -> push -> PR state transitions.
-- [ ] T054 Test stale workspace rejection before mutation.
-- [ ] T055 Test resume does not create duplicate commit.
+- [x] T050 Test record/evidence/remote/branch invariants.
+- [x] T051 Test CLI parser/routing.
+- [x] T052 Test no-shell/no-force command construction.
+- [x] T053 Test commit -> push -> PR state transitions.
+- [x] T054 Test stale workspace rejection before mutation.
+- [x] T055 Test resume does not create duplicate commit.
 - [ ] T056 Re-run full V1–V7 Engineering Graph suite.
 - [ ] T057 Run Spec Kit validation on implementation candidate HEAD.
 - [ ] T058 Run Engineering Graph workflow on implementation candidate HEAD.
