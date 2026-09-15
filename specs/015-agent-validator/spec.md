@@ -11,7 +11,7 @@ graph:
 ---
 # Feature Specification: Agent Validator V7
 
-**Status**: In Progress
+**Status**: Ready
 
 ## Problem
 
@@ -28,9 +28,10 @@ V7 introduces a local deterministic validation layer for an already-active V3 al
 5. Parse commands into argv with `shell=False` and execute from the allocation worktree.
 6. Execute commands sequentially and fail closed on the first non-zero exit by default.
 7. Persist a versioned, atomic, disposable validation record under `.execution/validation/` with command argv, exit code, timestamps and log paths.
-8. Provide status/inspection without re-executing validation.
-9. Keep canonical Task mutation, lease release, commit/push/PR/merge and Neo4j projection outside V7 authority.
-10. Preserve V1–V6 behavior and product-runtime isolation.
+8. Bind validation evidence to a deterministic workspace identity and require the workspace to remain unchanged while validation runs.
+9. Provide status/inspection without re-executing validation.
+10. Keep canonical Task mutation, lease release, commit/push/PR/merge and Neo4j projection outside V7 authority.
+11. Preserve V1–V6 behavior and product-runtime isolation.
 
 ## Non-goals
 
@@ -61,7 +62,7 @@ V7 introduces a local deterministic validation layer for an already-active V3 al
 - **FR-014**: Command stdout/stderr MUST be captured to per-command files rather than embedded unbounded in the registry.
 - **FR-015**: A validation record MUST contain version, validation id, repository/task/spec/source revision, run id, branch/worktree identity, overall status, ordered command results and timestamps.
 - **FR-016**: Validation records MUST use atomic JSON replacement.
-- **FR-017**: Validation record status MUST be `passed` only when every frozen command exits 0; otherwise it MUST be `failed`.
+- **FR-017**: Validation record status MUST be `passed` only when every frozen command exits 0 and all other V7 validity invariants hold; otherwise it MUST be `failed`.
 - **FR-018**: Validation state MUST be stored only under `.execution/validation/` and remain disposable.
 - **FR-019**: `validation-status` MUST inspect latest/all records without executing commands.
 - **FR-020**: Validation success MUST NOT edit `tasks.md`, specs, ADRs, code or any other canonical artifact.
@@ -69,6 +70,8 @@ V7 introduces a local deterministic validation layer for an already-active V3 al
 - **FR-022**: Validation success MUST NOT commit, push, open/review/merge PRs or otherwise publish Git state.
 - **FR-023**: No application package may depend on V7 or its generated state.
 - **FR-024**: V7 MUST preserve the V1–V6 Engineering Graph tests and Product CI.
+- **FR-025**: V7 MUST record the worktree Git revision plus deterministic SHA-256 workspace fingerprints before and after command execution, covering the tracked diff and non-ignored untracked files.
+- **FR-026**: A validation record MUST NOT be `passed` when the Git revision or workspace fingerprint changes while validation executes.
 
 ## Success Criteria
 
@@ -82,3 +85,4 @@ V7 introduces a local deterministic validation layer for an already-active V3 al
 - **SC-008**: No validation path mutates Task state, leases, worktrees or Git history.
 - **SC-009**: Existing V1–V6 Engineering Graph tests remain green.
 - **SC-010**: Spec Kit, Engineering Graph and Product CI are green on the same final freeze HEAD.
+- **SC-011**: A validation command that mutates the publishable workspace cannot yield an overall `passed` record even if the command itself exits 0.
