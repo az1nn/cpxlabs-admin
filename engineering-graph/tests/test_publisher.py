@@ -9,11 +9,14 @@ from engineering_graph.publisher import (
     CommandResult,
     PublicationError,
     PublicationRecord,
+    _assert_current_validated_workspace,
     _assert_validation_matches_allocation,
     _create_pr,
     _push,
     _remote_repository,
+    _run_command,
     resume_publication,
+    run_publication,
     validate_publication_record,
 )
 from engineering_graph.validation import ValidationRecord
@@ -114,6 +117,29 @@ class GitPublisherTests(unittest.TestCase):
         with self.assertRaises(PublicationError):
             _assert_validation_matches_allocation(validation(status="failed"), allocation())
 
+    @patch("engineering_graph.publisher.workspace_identity")
+    def test_current_workspace_must_match_v7_revision_and_fingerprint(self, identity) -> None:
+        identity.return_value = ("workspace-sha", "fingerprint")
+        _assert_current_validated_workspace(MagicMock(), validation())
+
+        identity.return_value = ("other-sha", "fingerprint")
+        with self.assertRaises(PublicationError):
+            _assert_current_validated_workspace(MagicMock(), validation())
+
+        identity.return_value = ("workspace-sha", "drifted")
+        with self.assertRaises(PublicationError):
+            _assert_current_validated_workspace(MagicMock(), validation())
+
+    @patch("engineering_graph.publisher.subprocess.run")
+    def test_command_executor_is_argv_only_and_never_uses_shell(self, run) -> None:
+        run.return_value = MagicMock(returncode=0, stdout="ok", stderr="")
+        result = _run_command(MagicMock(), ("git", "status", "--porcelain"))
+        self.assertEqual(result.returncode, 0)
+        args, kwargs = run.call_args
+        self.assertEqual(args[0], ["git", "status", "--porcelain"])
+        self.assertFalse(kwargs["shell"])
+        self.assertFalse(kwargs["check"])
+
     @patch("engineering_graph.publisher.save_publication_record")
     @patch("engineering_graph.publisher._git")
     @patch("engineering_graph.publisher._assert_origin_repository")
@@ -152,6 +178,48 @@ class GitPublisherTests(unittest.TestCase):
         )
         self.assertEqual(_create_pr(record), "https://github.com/example/repo/pull/7")
         checked.assert_not_called()
+
+    @patch("engineering_graph.publisher._open_pr")
+    @patch("engineering_graph.publisher._push")
+    @patch("engineering_graph.publisher._stage_and_commit")
+    @patch("engineering_graph.publisher._save")
+    @patch("engineering_graph.publisher._preflight")
+    def test_run_publication_advances_commit_push_pr_once(
+        self,
+        preflight,
+        save,
+        stage_commit,
+        push,
+        open_pr,
+    ) -> None:
+        preflight.return_value = (allocation(), validation(), MagicMock())
+        save.side_effect = lambda settings, record, **kwargs: record
+        committed = publication(status="committed", last_successful_phase="commit", commit_sha="commit-sha")
+        pushed = replace(committed, status="pushed", last_successful_phase="push")
+        opened = replace(
+            pushed,
+            status="pr_opened",
+            last_successful_phase="pr",
+            pr_url="https://github.com/example/repo/pull/9",
+            finished_at=NOW,
+        )
+        stage_commit.return_value = committed
+        push.return_value = pushed
+        open_pr.return_value = opened
+
+        result = run_publication(
+            MagicMock(),
+            "SPEC-016-GIT-PUBLISHER:T010",
+            "val-1",
+            commit_message="feat: publish task",
+            pr_title="feat: publish task",
+            pr_body="validated",
+        )
+
+        self.assertEqual(result.status, "pr_opened")
+        stage_commit.assert_called_once()
+        push.assert_called_once_with(MagicMock.ANY if False else stage_commit.call_args.args[0], committed, root_override=None)
+        open_pr.assert_called_once()
 
     @patch("engineering_graph.publisher._open_pr")
     @patch("engineering_graph.publisher._push")
