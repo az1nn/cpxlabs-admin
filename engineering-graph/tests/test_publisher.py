@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from engineering_graph.execution import ExecutionAllocation
 from engineering_graph.publisher import (
@@ -218,8 +218,8 @@ class GitPublisherTests(unittest.TestCase):
 
         self.assertEqual(result.status, "pr_opened")
         stage_commit.assert_called_once()
-        push.assert_called_once_with(MagicMock.ANY if False else stage_commit.call_args.args[0], committed, root_override=None)
-        open_pr.assert_called_once()
+        push.assert_called_once_with(ANY, committed, root_override=None)
+        open_pr.assert_called_once_with(ANY, pushed, root_override=None)
 
     @patch("engineering_graph.publisher._open_pr")
     @patch("engineering_graph.publisher._push")
