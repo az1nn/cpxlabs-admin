@@ -5,6 +5,7 @@ import sys
 from typing import Sequence
 
 from . import cli as legacy_cli
+from .publisher_cli import register_publisher_subcommands
 from .runner_cli import register_runner_subcommands
 from .supervisor_cli import register_supervisor_subcommands
 from .validation_cli import register_validation_subcommands
@@ -14,7 +15,8 @@ SUPERVISOR_COMMANDS = frozenset(
     {"supervisor-start", "supervisor-tick", "supervisor-status", "supervisor-stop"}
 )
 VALIDATION_COMMANDS = frozenset({"validation-run", "validation-status"})
-LOCAL_COMMANDS = RUNNER_COMMANDS | SUPERVISOR_COMMANDS | VALIDATION_COMMANDS
+PUBLISHER_COMMANDS = frozenset({"publication-run", "publication-resume", "publication-status"})
+LOCAL_COMMANDS = RUNNER_COMMANDS | SUPERVISOR_COMMANDS | VALIDATION_COMMANDS | PUBLISHER_COMMANDS
 
 
 def _command_token(argv: Sequence[str]) -> str | None:
@@ -41,6 +43,7 @@ def _runner_parser() -> argparse.ArgumentParser:
     register_runner_subcommands(subparsers)
     register_supervisor_subcommands(subparsers)
     register_validation_subcommands(subparsers)
+    register_publisher_subcommands(subparsers)
     return parser
 
 
