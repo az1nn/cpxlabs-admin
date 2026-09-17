@@ -94,6 +94,39 @@ Rules:
 
 See `docs/architecture/POST_PUBLICATION_LIFECYCLE.md` and ADR-0025.
 
+## Lifecycle Coordinator V10
+
+V10 is a read-only projection across canonical Git/Spec Kit state, existing V3–V9 evidence, and explicit Human Async Gate evidence. It answers the furthest lifecycle phase actually proven and exactly one next action. It is not a new mutation tier.
+
+Inspect lifecycle state:
+
+```bash
+graph-engineering lifecycle-status --task <CANONICAL-TASK-ID> --json
+```
+
+Optional gate evidence:
+
+```bash
+graph-engineering lifecycle-status \
+  --task <CANONICAL-TASK-ID> \
+  --human-gates <GATES.json> \
+  --json
+```
+
+Rules:
+
+- treat the V10 assessment and continuation payload as derived, freshness-bound context only;
+- preserve canonical-vs-derived-vs-human evidence provenance;
+- never infer a later authority tier from an earlier success: runner != validation != publication != merge != canonical Task completion != cleanup;
+- conflicting repository/Spec/Task/branch/worktree/run/validation/publication/PR identity must fail closed to `blocked` rather than being guessed;
+- `lifecycle-status` must remain read-only: do not acquire/release leases, create/remove worktrees, start/stop runs, execute validation, publish Git state, edit Tasks, mutate PRs, change Human Async Gates, or write Neo4j truth from the status path;
+- live PR inspection, when enabled, is read-only `gh pr view` using argv with `shell=False`; absence/failure of live PR evidence must not be guessed as merged;
+- required `PENDING`, `FAILED`, or stale Human Async Gate evidence remains visible and blocking at the applicable human/readiness boundary;
+- execute the returned `nextAction` only through the subsystem or human authority that owns it;
+- re-check Git HEAD, PR state and gate freshness before using a continuation payload.
+
+See `docs/architecture/LIFECYCLE_COORDINATOR.md`, `specs/018-lifecycle-coordinator/contracts/lifecycle-assessment.md`, and ADR-0026.
+
 ## Continuation Prompts
 
 Follow `docs/ai/continuation-prompt-template.md` and `docs/ai/context-handoff.md`.
