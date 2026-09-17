@@ -2,7 +2,7 @@
 
 Repository-local control plane for Spec-Driven and Agent-Driven engineering. Git-backed code, Spec Kit artifacts, ADRs, tests and Git history remain canonical; Neo4j and all generated execution/retrieval/process/publication state are derived and disposable.
 
-No application runtime depends on this directory, Neo4j, GraphRAG, agent process tooling, validation, publication, or post-publication state.
+No application runtime depends on this directory, Neo4j, GraphRAG, agent process tooling, validation, publication, post-publication state, or lifecycle projections.
 
 ## Local setup
 
@@ -49,11 +49,14 @@ V8 Git Publisher                                        commit/push/open PR
                          |
                          v
 V9 Post-Publication Lifecycle                           reconcile/release/clean worktree
+                         |
+                         v
+V10 Lifecycle Coordinator                               read-only phase/next-action projection
 
 V4 GraphRAG is an orthogonal read-only semantic-discovery sidecar over tracked repository content and existing deterministic graph evidence.
 ```
 
-Each layer may consume evidence from the preceding layer but does not silently acquire authority owned by the next layer or by humans.
+Each layer may consume evidence from the preceding layer but does not silently acquire authority owned by the next layer or by humans. V10 composes the existing evidence tiers but owns no mutation authority at all.
 
 ## Core graph commands
 
@@ -215,6 +218,40 @@ If lease release succeeds but worktree cleanup is blocked by dirty/unregistered 
 
 See `docs/architecture/POST_PUBLICATION_LIFECYCLE.md` and ADR-0025.
 
+## V10 Lifecycle Coordinator
+
+Read-only lifecycle projection:
+
+```bash
+graph-engineering lifecycle-status \
+  --task <CANONICAL-TASK-ID> \
+  --json
+```
+
+Optional Human Async Gate evidence:
+
+```bash
+graph-engineering lifecycle-status \
+  --task <CANONICAL-TASK-ID> \
+  --human-gates .execution/human-gates.json \
+  --json
+```
+
+Local-only status without live PR inspection:
+
+```bash
+graph-engineering lifecycle-status \
+  --task <CANONICAL-TASK-ID> \
+  --no-pr-inspect \
+  --json
+```
+
+V10 reads canonical Git identity plus existing V3–V9 evidence, validates cross-artifact identity, reports the furthest phase actually proven, exposes blockers, selects exactly one next action from a closed vocabulary, and renders a freshness-bound continuation payload.
+
+V10 does not advance the lifecycle. It never acquires/releases leases, creates/removes worktrees, starts/stops processes, executes validation, commits/pushes/opens/merges PRs, edits canonical Task state, changes Human Async Gates, or writes lifecycle truth into Neo4j. Live PR inspection is read-only `gh pr view` with argv and `shell=False`; unavailable PR state is never guessed as merged.
+
+See `docs/architecture/LIFECYCLE_COORDINATOR.md`, ADR-0026, and `specs/018-lifecycle-coordinator/contracts/lifecycle-assessment.md`.
+
 ## Human Async Gates and Continuation Prompts
 
 Human/manual/external acceptance that cannot be synchronously proven is documented through `docs/ai/human-async-gates.md`.
@@ -240,6 +277,8 @@ context-packages/
   post-publication/
 ```
 
+V10 assessments are computed on demand and do not create a new canonical lifecycle-state directory.
+
 Do not blindly delete `.execution/worktrees/`: inspect Git worktree/lease state first because those directories may contain uncommitted user work.
 
 ## CI / quality
@@ -257,6 +296,7 @@ Engineering Graph CI preserves the whole control-plane baseline:
 - V6 supervisor ownership/retry behavior;
 - V7 validation identity/fingerprint behavior;
 - V8 non-force publication/resume behavior;
-- V9 post-merge/canonical-completion/cleanup/idempotency behavior.
+- V9 post-merge/canonical-completion/cleanup/idempotency behavior;
+- V10 lifecycle reducer, identity, Human Async Gate, continuation and read-only status behavior.
 
 Spec Kit and Product CI remain independent gates. A final material feature freeze requires Spec Kit + Engineering Graph + Product CI green on the exact same final HEAD, plus no required Human Async Gate remaining `PENDING`.
