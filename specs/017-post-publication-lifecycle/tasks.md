@@ -67,7 +67,7 @@
 - [x] T048 Create `analysis.md` mapping FR/SC to evidence.
 - [x] T049 Create `convergence.md` with authority and gate evidence.
 - [x] T050 Reconcile task ledger against implementation evidence.
-- [ ] T051 Run Spec Kit on final HEAD.
-- [ ] T052 Run Engineering Graph workflow on final HEAD.
-- [ ] T053 Run Product CI on final HEAD.
-- [ ] T054 Freeze only when all three gates are green on the same HEAD and all required Human Async Gates are non-PENDING.
+- [x] T051 Run Spec Kit on the closeout candidate: #432 passed.
+- [x] T052 Run Engineering Graph on the closeout candidate: #385 passed.
+- [x] T053 Run Product CI on the closeout candidate: #797 passed, including Storybook/a11y and Playwright E2E.
+- [x] T054 Declare V9 freeze candidate after the three closeout gates are green and no required Human Async Gate is PENDING; repeat all three workflows on this exact ledger/freeze HEAD before PR readiness.
