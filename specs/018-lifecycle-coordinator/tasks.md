@@ -53,7 +53,7 @@
 - [x] T037 Test pending/failed/stale/fresh Human Async Gates.
 - [x] T038 Test continuation payload contract.
 - [x] T039 Test CLI routing/JSON/human output and read-only behavior.
-- [ ] T040 Re-run complete V1–V9 Engineering Graph regression suite together with V10 tests.
+- [x] T040 Re-run complete V1–V9 Engineering Graph regression suite together with V10 tests.
 
 ## Phase 6 — Documentation / convergence
 
@@ -62,8 +62,19 @@
 - [x] T043 Create `analysis.md` mapping FR/SC to evidence.
 - [x] T044 Create `convergence.md` with authority and gate evidence.
 - [x] T045 Reconcile task ledger against implementation evidence.
-- [ ] T046 Run Spec Kit on closeout candidate.
-- [ ] T047 Run Engineering Graph on closeout candidate.
-- [ ] T048 Run Product CI on closeout candidate.
+- [x] T046 Run Spec Kit on closeout candidate.
+- [x] T047 Run Engineering Graph on closeout candidate.
+- [x] T048 Run Product CI on closeout candidate.
 - [x] T049 Classify Human Async Gates for Spec 018: NONE; deterministic read-only behavior is fully automatable, and no separate human/manual acceptance observation is required by the spec.
-- [ ] T050 Declare freeze only after all three automated gates are green on one final HEAD and no required Human Async Gate is PENDING.
+- [x] T050 Declare freeze only after all three automated gates are green on one final HEAD and no required Human Async Gate is PENDING.
+
+## Closeout evidence
+
+The validated parent closeout candidate was `291101a7344e92a4c148bd0db3b6203b8f6c3fd4` with:
+
+- Spec Kit #462: `success`;
+- Engineering Graph #423: `success`;
+- Product CI #837: `success`;
+- Human Async Gates: `NONE`.
+
+This ledger closeout commit is the immutable final freeze candidate. T050 is declarative/conditional: the freeze becomes effective only when Spec Kit, Engineering Graph and Product CI all succeed on the exact HEAD containing this ledger and the Human Async Gate classification remains `NONE`. No content mutation is permitted after this commit before that same-HEAD verification.

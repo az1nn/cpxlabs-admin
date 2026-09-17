@@ -23,6 +23,7 @@ No merge, Task-completion, lease/worktree, process, validation, publication or H
 - `engineering-graph/src/engineering_graph/lifecycle_cli.py`
 - `engineering-graph/src/engineering_graph/runner_entry.py`
 - `engineering-graph/tests/test_lifecycle.py`
+- `engineering-graph/tests/test_lifecycle_cli.py`
 - `docs/architecture/LIFECYCLE_COORDINATOR.md`
 - `engineering-graph/README.md`
 - `engineering-graph/AGENTS.md`
@@ -50,16 +51,30 @@ Rationale: V10 is deterministic control-plane classification plus read-only I/O.
 
 This does not pass or waive any gate; it records that no separate Human Async Gate is required for this feature.
 
-## Automated closeout
+## Validated parent closeout candidate
 
-Candidate/final workflow evidence is intentionally populated by the task ledger and Caveman handoff after GitHub Actions completes. Final freeze requires all three workflows green on one exact final HEAD:
+The exact parent candidate `291101a7344e92a4c148bd0db3b6203b8f6c3fd4` completed all required automated gates:
 
-- Spec Kit;
-- Engineering Graph;
-- Product CI.
+- Spec Kit #462: `success`;
+- Engineering Graph #423: `success`;
+- Product CI #837: `success`.
 
-Any content commit after a candidate run invalidates that candidate for final freeze and requires the same three gates again.
+Engineering Graph #423 includes the complete V1–V9 regression baseline together with the V10 reducer/adapter/CLI tests. Product CI #837 is the independent product gate. No required Human Async Gate exists for Spec 018.
+
+## Final freeze activation rule
+
+The commit containing this closeout record is the final freeze candidate. Its SHA is intentionally not embedded in this file because doing so would require another content mutation and create an infinite freeze-HEAD regress.
+
+Freeze becomes effective without further repository-content mutation only when all of the following are true for the exact HEAD containing this record:
+
+1. Spec Kit is `success`;
+2. Engineering Graph is `success`;
+3. Product CI is `success`;
+4. Spec 018 Human Async Gates remain `NONE`;
+5. no repository content has changed since this closeout record was committed.
+
+Any content commit after this record invalidates the candidate and requires the same three automated gates again on the new exact HEAD.
 
 ## Convergence status
 
-Implementation/spec/authority convergence is complete. Automated regression/freeze convergence remains pending until the three required workflows are green on the exact ledger/freeze HEAD.
+Implementation, specification, authority, regression and candidate-gate convergence are complete. The final freeze declaration is armed by this immutable closeout record and becomes effective only after the three required workflows are green on the exact HEAD containing it. Until then, the PR remains Draft and must not be merged.
