@@ -49,3 +49,68 @@ Rules:
 - `.execution/publication/` is derived disposable evidence.
 
 See `docs/architecture/GIT_PUBLISHER.md` and ADR-0024.
+
+## Post-Publication Lifecycle V9
+
+V9 closes derived execution state after V8 publication and human merge. It is reconciliation/cleanup infrastructure, not Task completion or merge authority.
+
+Inspect before cleanup:
+
+```bash
+graph-engineering post-publication-status --publication <PUBLICATION-ID> --json
+```
+
+Explicit finalization:
+
+```bash
+graph-engineering post-publication-finalize \
+  --publication <PUBLICATION-ID> \
+  --release-lease \
+  --json
+```
+
+Optional worktree removal requires additional explicit intent:
+
+```bash
+graph-engineering post-publication-finalize \
+  --publication <PUBLICATION-ID> \
+  --release-lease \
+  --remove-worktree \
+  --json
+```
+
+Rules:
+
+- PR review/merge remains human/external authority; V9 only inspects current PR state;
+- a merged PR does not itself mark the Spec Kit Task complete;
+- refresh the configured base, prove the merge commit is reachable, then read the canonical Task checkbox from the merged base;
+- missing, ambiguous, or unchecked canonical Task evidence blocks cleanup; never edit the checkbox from derived runtime/publication evidence;
+- lease release requires explicit `--release-lease` intent;
+- worktree removal additionally requires `--remove-worktree` and a clean matching worktree;
+- V9 intentionally exposes no force-delete path for dirty worktrees;
+- `.execution/post-publication/` receipts are derived idempotency/audit evidence, never project truth or Neo4j truth;
+- if lease release succeeds but worktree cleanup is blocked, a later retry may resume only the cleanup phase; merge/base/canonical Task evidence must still be revalidated;
+- do not recreate or double-release a lease merely to satisfy a retry.
+
+See `docs/architecture/POST_PUBLICATION_LIFECYCLE.md` and ADR-0025.
+
+## Continuation Prompts
+
+Follow `docs/ai/continuation-prompt-template.md` and `docs/ai/context-handoff.md`.
+
+Every material development update that leaves follow-up work possible must include a ready-to-paste Continuation Prompt with current repository/base/branch/PR/HEAD/Spec, automated gates, unresolved Human Async Gates, one exact Next Action, freshness instructions, and the current authority boundary.
+
+Regenerate it whenever HEAD, PR, CI, Spec Kit, or gate state changes. It is derived context and never overrides Git.
+
+## Human Async Gates
+
+Follow `docs/ai/human-async-gates.md`.
+
+- a required `PENDING` human gate blocks final readiness/completion claims;
+- green automated CI never implicitly passes a distinct human gate;
+- human acceptance never replaces required automated tests;
+- agents must never self-pass or self-waive a human gate;
+- automated CI that is merely still running is an automated pending gate, not a Human Async Gate unless human/external acceptance is genuinely required;
+- unresolved required gates must appear in the Continuation Prompt and session handoff.
+
+Final feature freeze requires Spec Kit + Engineering Graph + Product CI green on the same final HEAD and no required Human Async Gate remaining `PENDING`.

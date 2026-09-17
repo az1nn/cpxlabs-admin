@@ -8,7 +8,7 @@ These instructions are intended to be mirrored into the ChatGPT Project Instruct
 
 For repository-related work, treat Git-backed code, Spec Kit artifacts, ADRs, tests, and Git history as canonical.
 
-Neo4j Engineering Graph data, ContextPackages, execution manifests, `SESSION_HANDOFF.md`, and chat history are derived context only. They may accelerate navigation and continuity but never override canonical Git-backed state.
+Neo4j Engineering Graph data, ContextPackages, execution manifests, lifecycle receipts, `SESSION_HANDOFF.md`, Continuation Prompts, and chat history are derived context only. They may accelerate navigation and continuity but never override canonical Git-backed state.
 
 ## Session bootstrap
 
@@ -18,7 +18,8 @@ At the beginning of a material development session:
 2. read `AGENTS.md`;
 3. follow `docs/ai/context-handoff.md`;
 4. reconstruct only the bounded context required for the current task;
-5. when available, refresh and validate Engineering Graph context before relying on generated packages.
+5. inspect unresolved Human Async Gates when they exist;
+6. when available, refresh and validate Engineering Graph context before relying on generated packages.
 
 Do not load the entire repository or replay previous chats by default.
 
@@ -54,6 +55,53 @@ Do not abandon a safe atomic action already in progress. Finish or explicitly st
 
 Then generate a `SESSION_HANDOFF.md` following `docs/ai/session-handoff-template.md`.
 
+## Continuation Prompt contract
+
+Every material development update that leaves work to continue MUST end with a reusable **Continuation Prompt**. This includes normal progress pauses, waiting for CI/external results, Human Async Gates, review/merge boundaries, and context handoffs.
+
+If the current feature is fully closed, the prompt must still describe the next safe lifecycle action, such as verifying merge/master freshness and starting the next numbered Spec Kit feature in a new branch/PR.
+
+The Continuation Prompt must include:
+
+- repository;
+- target base branch;
+- active branch;
+- active PR/issue when applicable;
+- exact current HEAD;
+- active Spec Kit feature/task scope;
+- automated gate state;
+- unresolved required Human Async Gates;
+- one exact Next Action;
+- a freshness instruction to re-check Git/PR/gates before mutating state;
+- the relevant authority boundary, especially whether merge/task completion/cleanup still requires human or canonical evidence.
+
+Continuation Prompts are derived operational context. Regenerate them after HEAD, PR, Spec Kit, CI, or Human Async Gate state changes. Never treat an old prompt as fresher than Git.
+
+## Human Async Gates
+
+Follow `docs/ai/human-async-gates.md` whenever a required acceptance result depends on later human observation or external/asynchronous completion that the current automated step cannot synchronously prove.
+
+Each Human Async Gate must record:
+
+- Gate ID;
+- subject;
+- trigger/evidence;
+- expected observation;
+- approver;
+- status (`PENDING`, `PASSED`, `FAILED`, `WAIVED`);
+- rationale when waived;
+- freshness boundary;
+- exact next action.
+
+Rules:
+
+1. a required `PENDING` Human Async Gate blocks claims of final readiness, merge readiness, release readiness, or completion;
+2. green automated CI does not implicitly satisfy a distinct human gate;
+3. a human gate does not replace required automated CI/tests;
+4. the assistant must never self-mark a Human Async Gate `PASSED` or `WAIVED` without real human/external evidence;
+5. if an automated async test is merely still running, represent it as an automated pending gate; create a Human Async Gate only when human/external acceptance is actually required;
+6. unresolved required gates must appear in the Continuation Prompt and handoff evidence.
+
 ## Handoff contract
 
 The handoff must describe final state, not conversation history, and include:
@@ -67,9 +115,11 @@ The handoff must describe final state, not conversation history, and include:
 - completed work;
 - canonical artifacts;
 - Engineering Graph/ContextPackage references worth refreshing;
-- verification state and freshness boundary;
+- automated verification state and freshness boundary;
+- Human Async Gates and their status;
 - open items/blockers;
 - exact Next Action;
+- a ready-to-paste Continuation Prompt;
 - minimum bootstrap context for the next chat.
 
 Never paste full transcripts, long logs, or speculative history into the handoff.
@@ -86,8 +136,9 @@ At minimum, verify:
 4. active Spec Kit artifacts/tasks;
 5. relevant ADRs and source files;
 6. Engineering Graph state when used;
-7. whether generated ContextPackages and previous verification evidence still match current Git revision.
+7. automated CI and Human Async Gate status;
+8. whether generated ContextPackages, Continuation Prompts and previous verification evidence still match current Git revision.
 
-If a handoff conflicts with Git, Spec Kit, ADRs, code, tests, or current PR state, canonical repository state wins and the mismatch must be called out.
+If a handoff or Continuation Prompt conflicts with Git, Spec Kit, ADRs, code, tests, or current PR state, canonical repository state wins and the mismatch must be called out.
 
-Changing chats never resets project lifecycle, validation requirements, task dependencies, PR ownership, or CI expectations.
+Changing chats never resets project lifecycle, validation requirements, task dependencies, PR ownership, Human Async Gates, or CI expectations.
