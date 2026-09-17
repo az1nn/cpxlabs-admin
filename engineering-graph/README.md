@@ -1,12 +1,8 @@
 # Engineering Graph
 
-Repository-local Neo4j control plane for Spec-Driven and Agent-Driven engineering, with bounded context, execution orchestration, GraphRAG retrieval and local agent process lifecycle.
+Repository-local control plane for Spec-Driven and Agent-Driven engineering. Git-backed code, Spec Kit artifacts, ADRs, tests and Git history remain canonical; Neo4j and all generated execution/retrieval/process/publication state are derived and disposable.
 
-## Authority boundary
-
-Git-backed artifacts are canonical. Neo4j is a rebuildable deterministic projection used for traceability, impact analysis, drift checks, bounded agent context and execution planning. Generated ContextPackages, execution manifests, leases, GraphRAG indexes/results and Agent Runner process metadata/logs are disposable derived artifacts.
-
-No application runtime depends on this directory, Neo4j, an embedding provider, the Agent Runner or generated graph/retrieval/process state.
+No application runtime depends on this directory, Neo4j, GraphRAG, agent process tooling, validation, publication, or post-publication state.
 
 ## Local setup
 
@@ -23,9 +19,43 @@ graph-engineering sync
 graph-engineering validate
 ```
 
-Neo4j Browser is exposed on `http://127.0.0.1:7474`; Bolt uses `bolt://127.0.0.1:7687`.
+## Control-plane layers
 
-## Core commands
+```text
+Git / Spec Kit / ADR / code / tests / Git history        canonical authority
+                         |
+                         v
+V1 deterministic Engineering Graph                      derived projection
+                         |
+                         v
+V2 Agent Context Graph                                  bounded ContextPackage/handoff
+                         |
+                         v
+V3 Execution Graph                                      waves/worktrees/leases
+                         |
+                         v
+V5 Agent Runner                                         local process lifecycle
+                         |
+                         v
+V6 Agent Supervisor                                     bounded scheduling/retries
+                         |
+                         v
+V7 Agent Validator                                      frozen-command validation
+                         |
+                         v
+V8 Git Publisher                                        commit/push/open PR
+                         |
+                   human review / merge
+                         |
+                         v
+V9 Post-Publication Lifecycle                           reconcile/release/clean worktree
+
+V4 GraphRAG is an orthogonal read-only semantic-discovery sidecar over tracked repository content and existing deterministic graph evidence.
+```
+
+Each layer may consume evidence from the preceding layer but does not silently acquire authority owned by the next layer or by humans.
+
+## Core graph commands
 
 ```bash
 graph-engineering doctor --wait 60
@@ -33,166 +63,51 @@ graph-engineering schema
 graph-engineering sync --json
 graph-engineering validate --json
 graph-engineering stats --json
-graph-engineering impact ADR-0021 --depth 3 --json
-graph-engineering ready --spec SPEC-013-AGENT-RUNNER --json
-graph-engineering conflicts --spec SPEC-013-AGENT-RUNNER --json
+graph-engineering impact <CANONICAL-ID> --depth 3 --json
+graph-engineering ready --spec <SPEC-ID> --json
+graph-engineering conflicts --spec <SPEC-ID> --json
 graph-engineering drift --json
-graph-engineering context SPEC-013-AGENT-RUNNER:T031 --format markdown
-graph-engineering waves --spec SPEC-013-AGENT-RUNNER --json
-graph-engineering execution-plan --spec SPEC-013-AGENT-RUNNER --agent codex --output .execution/manifest.json
-graph-engineering graphrag-build --provider hashing
-graph-engineering graphrag-query "Agent Runner authority" --provider hashing --mode architecture
-graph-engineering runner-status --json
-graph-engineering reset --yes
 ```
 
-## V1 deterministic graph model
-
-Seven node labels:
-
-- `Requirement`
-- `Spec`
-- `ADR`
-- `Task`
-- `CodeArtifact`
-- `Test`
-- `PullRequest`
-
-Eight relationship names:
-
-- `REALIZED_BY`
-- `CONSTRAINED_BY`
-- `DECOMPOSED_INTO`
-- `DEPENDS_ON`
-- `IMPLEMENTED_BY`
-- `VALIDATED_BY`
-- `IMPLEMENTS`
-- `CHANGES`
-
-Node identity is `(repository, canonicalId)`. The sync engine consumes explicit repository evidence only. Task phase order is not treated as dependency evidence; use explicit `depends: T001,T002` when dependency edges are required.
-
-GraphRAG and Agent Runner do not add labels or relationship types to this vocabulary.
+V1 uses deterministic repository evidence only. Task phase ordering is not a dependency edge; use explicit `depends:` metadata when dependency evidence is required.
 
 ## V2 Agent Context Graph
 
-Generate one task package:
-
 ```bash
-graph-engineering context-batch --task SPEC-013-AGENT-RUNNER:T031
-```
-
-Generate all READY packages for a spec:
-
-```bash
-graph-engineering context-batch --spec SPEC-013-AGENT-RUNNER --json
-```
-
-Each selected task receives:
-
-```text
-context.json   portable machine contract
-context.md     human-readable context map
-codex.md       Codex-oriented handoff
-claude.md      Claude Code-oriented handoff
-```
-
-Validate freshness immediately before implementation:
-
-```bash
+graph-engineering context-batch --task <TASK-ID>
+graph-engineering context-batch --spec <SPEC-ID> --json
 graph-engineering context-validate context-packages/.../context.json --strict
-```
-
-Adapters are pure renderers:
-
-```bash
 graph-engineering context-adapt context.json --agent codex
 graph-engineering context-adapt context.json --agent claude
 ```
 
-Default budgets:
-
-```yaml
-context:
-  max_depth: 3
-  max_nodes: 80
-  max_bytes: 65536
-```
-
-Generated packages are ignored by Git and must be regenerated when repository/graph evidence changes.
+Generated ContextPackages/handoffs are revision-bound derived context. Strictly validate freshness immediately before implementation and regenerate after Git/graph changes.
 
 ## V3 Execution Graph
 
-Build a revision-bound execution manifest:
-
 ```bash
 graph-engineering execution-plan \
-  --spec SPEC-013-AGENT-RUNNER \
+  --spec <SPEC-ID> \
   --agent codex \
-  --output .execution/manifests/spec-013.json
-```
+  --output .execution/manifests/<spec>.json
 
-Dry-run or prepare one conflict-safe wave/task:
-
-```bash
-graph-engineering execution-prepare .execution/manifests/spec-013.json --wave 1 --dry-run
-graph-engineering execution-prepare .execution/manifests/spec-013.json --task <TASK-ID>
-```
-
-Inspect/release allocations:
-
-```bash
+graph-engineering execution-prepare .execution/manifests/<spec>.json --wave 1 --dry-run
+graph-engineering execution-prepare .execution/manifests/<spec>.json --task <TASK-ID>
 graph-engineering execution-status
 graph-engineering execution-release <TASK-ID>
 graph-engineering execution-release <TASK-ID> --remove-worktree
 ```
 
-V3 creates/resumes deterministic worktrees and local derived leases only after revision, wave and V2 ContextPackage freshness checks. Dirty worktree contents are user data and are not removed unless explicit destructive `--force` is supplied.
-
-V3 never commits, pushes, creates/merges PRs or changes canonical Task status automatically.
+V3 owns derived allocation/worktree/lease state. Dirty worktree contents are user work and must never be removed implicitly.
 
 ## V4 GraphRAG
 
-V4 adds semantic repository discovery followed by read-only deterministic graph expansion.
-
-```text
-Git-tracked repository content
-        ↓
-deterministic chunks
-        ↓
-derived vector index
-        ↓
-semantic query hits
-        ↓
-sourcePath/path graph anchors
-        ↓
-existing Neo4j relationships only
-```
-
-### Build an offline deterministic index
-
 ```bash
-graph-engineering graphrag-build \
-  --provider hashing \
-  --output .graphrag/index.json
-```
-
-`hashing` is a deterministic zero-network retrieval surrogate for CI/offline mechanics. It is not equivalent to a learned semantic embedding model.
-
-### Validate/index status
-
-```bash
+graph-engineering graphrag-build --provider hashing
 graph-engineering graphrag-status --provider hashing
 graph-engineering graphrag-validate .graphrag/index.json --provider hashing --strict
-```
-
-Strict validation checks repository identity, Git revision, provider/model/dimensions and corpus/chunk configuration.
-
-### Query and expand the graph
-
-```bash
 graph-engineering graphrag-query \
-  "why does Agent Runner remain outside canonical task authority?" \
-  --index .graphrag/index.json \
+  "<query>" \
   --provider hashing \
   --mode architecture \
   --top-k 8 \
@@ -200,142 +115,148 @@ graph-engineering graphrag-query \
   --max-nodes 80
 ```
 
-Result evidence is deliberately separated into:
-
-- `semanticHits`: vector-ranked source chunks;
-- `anchors`: existing deterministic graph nodes resolved from hit paths;
-- `graphEvidence`: bounded traversal over relationships already present in Neo4j.
-
-Semantic score and graph distance are not collapsed into an opaque authority score.
-
-### Learned embeddings through HTTP
-
-```bash
-export GRAPH_RAG_EMBEDDING_URL='https://embedding-service.example/v1/embeddings'
-export GRAPH_RAG_EMBEDDING_MODEL='your-model'
-export GRAPH_RAG_EMBEDDING_API_KEY='...'
-export GRAPH_RAG_DIMENSIONS='1536'
-
-graph-engineering graphrag-build --provider http
-graph-engineering graphrag-validate --provider http --strict
-graph-engineering graphrag-query "runner authority" --provider http --mode architecture
-```
-
-The HTTP boundary avoids a mandatory provider SDK. Credentials are never stored in the semantic index.
-
-Only `git ls-files` paths can enter the corpus. Generated `.graphrag/` state is ignored by Git and disposable. GraphRAG never creates semantic relationship truth in Neo4j.
-
-See `docs/architecture/GRAPHRAG.md` and ADR-0020.
+GraphRAG indexes only eligible `git ls-files` content. Semantic similarity is discovery evidence, never a canonical relationship. Graph expansion traverses relationships already present in Neo4j.
 
 ## V5 Agent Runner
-
-V5 consumes an already-active V3 allocation and manages one local child-process lifecycle. It does not choose work, create worktrees, change leases or publish Git changes.
-
-### Start
-
-Put runner-owned options before `--command`; every token after `--command` belongs literally to the child argv:
 
 ```bash
 graph-engineering runner-start <TASK-ID> \
   --stdin-handoff \
   --json \
   --command <agent-executable> <agent-argv...>
-```
 
-The runner requires:
-
-- active V3 lease;
-- current repository/revision identity;
-- exact registered allocation worktree/branch;
-- generated handoff file;
-- no existing non-terminal run for the task.
-
-The target is launched with `shell=False` and cwd fixed to the allocated worktree. Handoff bytes may be supplied directly to stdin.
-
-### Inspect status/logs
-
-```bash
-graph-engineering runner-status --task <TASK-ID>
-graph-engineering runner-status --json
-graph-engineering runner-logs <TASK-ID> --stream stdout
+graph-engineering runner-status --task <TASK-ID> --json
 graph-engineering runner-logs <TASK-ID> --stream both --json
-```
-
-Versioned local state lives under:
-
-```text
-engineering-graph/.execution/runs/
-├── registry.json
-└── <run-id>/
-    ├── run.json
-    ├── stdout.log
-    ├── stderr.log
-    └── result.json
-```
-
-The whole subtree is derived/disposable and already covered by the ignored `.execution/` root.
-
-### Stop
-
-```bash
 graph-engineering runner-stop <TASK-ID>
 graph-engineering runner-stop <TASK-ID> --force
 ```
 
-On Linux the runner records a `/proc` process-start fingerprint in addition to PID and refuses to signal a PID whose identity no longer matches. Child processes run in a dedicated process group so lifecycle signals cover the spawned tree.
+V5 runs one process only for an active V3 allocation, with `shell=False` and cwd fixed to the allocated worktree. Process success is not Task completion and never releases the lease automatically.
 
-A terminal runner state does **not** release the V3 lease:
+## V6 Agent Supervisor
 
-```bash
-graph-engineering execution-release <TASK-ID>
-```
-
-Lease release remains explicit because process termination is not Task completion.
-
-### Agent Runner authority
-
-`running`, `succeeded`, `failed`, `stopped` and `orphaned` are process observations only. Even `succeeded`/exit code `0` does not mark a Spec Kit Task complete or authorize commit/push/PR/merge.
-
-Environment variables can be inherited by an installed local agent CLI but are never serialized into `AgentRun`; do not put secrets in argv because argv is intentionally recorded.
-
-See `docs/architecture/AGENT_RUNNER.md` and ADR-0021.
-
-## Drift versus validation
-
-`drift` exposes raw deterministic invariant evidence. `validate` applies configured severity policy (`error`, `warning`, `off`) plus structural checks. Use `drift` for inspection and `validate` as the CI decision surface.
-
-## CI
-
-`.github/workflows/engineering-graph.yml` runs:
-
-1. Python unit/integration tests, including real temporary Git worktrees, GraphRAG tests and harmless local Agent Runner lifecycle fixtures;
-2. application-runtime dependency isolation guard;
-3. ephemeral Neo4j schema/sync/idempotency/validation;
-4. V1 fundamental query smokes;
-5. V2 ContextPackage freshness/adapters/reproducibility/disposal;
-6. V3 ExecutionManifest/wave/completed-spec smokes;
-7. V4 GraphRAG build/freshness/reproducibility/retrieval/graph-expansion smokes;
-8. V5 worktree-cwd, stdin-handoff, logs, exit/stop, duplicate-run and lease-preservation assertions through the offline integration suite.
-
-CI never invokes a real Codex/Claude/networked agent for V5. Existing application CI and Spec Kit CI remain independent and authoritative for their domains.
-
-## Rebuild / recovery
-
-Derived graph/context/execution/retrieval/runner metadata is disposable:
+V6 supervises bounded waves/retries over V5 without creating new Task/Git authority.
 
 ```bash
-rm -rf context-packages/* .graphrag .execution/contexts .execution/manifests .execution/runs
-graph-engineering reset --yes
-graph-engineering schema
-graph-engineering sync
-graph-engineering validate
-graph-engineering graphrag-build --provider hashing
+graph-engineering supervisor-start ...
+graph-engineering supervisor-tick ...
+graph-engineering supervisor-status ...
+graph-engineering supervisor-stop ...
 ```
 
-Do not blindly delete `.execution/worktrees/`: inspect `execution-status`/Git worktree state first because those directories may contain uncommitted user work. Deleting `.execution/runs/` does not release leases or remove worktrees.
+Supervisor ownership/retry evidence remains derived. It may not reinterpret failed/stopped runs as canonical Task state.
 
-No canonical knowledge is lost by deleting the Neo4j projection, ContextPackages, clean execution metadata, GraphRAG index or Agent Runner logs/records.
+## V7 Agent Validator
 
-## Deliberately deferred
+```bash
+graph-engineering validation-run <TASK-ID> --json
+graph-engineering validation-status --task <TASK-ID> --json
+```
 
-V5 still does not include semantic similarity as canonical graph edges, LLM answer synthesis, distributed multi-host scheduling, wave-level agent supervision/retries, automatic validation execution, automatic Task mutation, automatic lease release, remote execution, or autonomous commit/push/PR creation/merge. Those require separate specs/ADRs/PRs.
+V7 runs only frozen validation commands from the active allocation, uses argv + `shell=False`, and requires a stable publishable workspace fingerprint. `passed` is validation evidence only; it does not commit, push, open a PR, mark the Task complete, or release the lease.
+
+## V8 Git Publisher
+
+```bash
+graph-engineering publication-run <TASK-ID> \
+  --validation <VALIDATION-ID> \
+  --commit-message "<message>" \
+  --pr-title "<title>" \
+  --pr-body "<body>" \
+  --base master \
+  --json
+
+graph-engineering publication-resume <PUBLICATION-ID> --json
+graph-engineering publication-status --publication <PUBLICATION-ID> --json
+```
+
+V8 may commit, push without force and open/reuse a PR only for the exact current workspace proven by V7. It never approves/merges a PR, changes Task status, releases leases, removes worktrees, or mutates Neo4j truth.
+
+## V9 Post-Publication Lifecycle
+
+Read-only reconciliation:
+
+```bash
+graph-engineering post-publication-status \
+  --publication <PUBLICATION-ID> \
+  --json
+```
+
+Explicit finalization:
+
+```bash
+graph-engineering post-publication-finalize \
+  --publication <PUBLICATION-ID> \
+  --release-lease \
+  --json
+```
+
+Optional clean worktree removal:
+
+```bash
+graph-engineering post-publication-finalize \
+  --publication <PUBLICATION-ID> \
+  --release-lease \
+  --remove-worktree \
+  --json
+```
+
+V9 requires all of the following before first cleanup mutation:
+
+- terminal V8 `pr_opened` publication evidence;
+- exact repository/spec/task/branch/worktree identity;
+- GitHub PR is merged;
+- merge commit is reachable from the refreshed configured base branch;
+- the canonical Spec Kit Task appears exactly once and is already checked complete in that merged base.
+
+V9 never infers or edits Task completion from runtime/publication state. Lease release is explicit. Worktree removal is additionally explicit and has no force-delete path.
+
+If lease release succeeds but worktree cleanup is blocked by dirty/unregistered state, V9 persists a derived receipt. A later retry may resume cleanup without recreating/double-releasing the lease, while merge/base/canonical Task evidence is still revalidated.
+
+See `docs/architecture/POST_PUBLICATION_LIFECYCLE.md` and ADR-0025.
+
+## Human Async Gates and Continuation Prompts
+
+Human/manual/external acceptance that cannot be synchronously proven is documented through `docs/ai/human-async-gates.md`.
+
+A required `PENDING` Human Async Gate blocks claims of final readiness/completion. Green CI does not implicitly pass a distinct human gate, and human acceptance does not replace automated tests.
+
+Every material development pause/handoff must emit a current Continuation Prompt using `docs/ai/continuation-prompt-template.md`. Prompts are derived and must be regenerated after HEAD/PR/CI/Spec/gate changes.
+
+## Derived state
+
+Typical disposable state:
+
+```text
+context-packages/
+.graphrag/
+.execution/
+  contexts/
+  manifests/
+  runs/
+  supervisor/
+  validation/
+  publication/
+  post-publication/
+```
+
+Do not blindly delete `.execution/worktrees/`: inspect Git worktree/lease state first because those directories may contain uncommitted user work.
+
+## CI / quality
+
+Engineering Graph CI preserves the whole control-plane baseline:
+
+- Python unit/integration tests, including real temporary Git worktrees and harmless local process fixtures;
+- application-runtime dependency isolation;
+- ephemeral Neo4j schema/sync/idempotency/validation;
+- V1 graph queries;
+- V2 context freshness/adapters/reproducibility;
+- V3 execution manifest/wave checks;
+- V4 GraphRAG build/freshness/retrieval/read-only checks;
+- V5 process lifecycle safety;
+- V6 supervisor ownership/retry behavior;
+- V7 validation identity/fingerprint behavior;
+- V8 non-force publication/resume behavior;
+- V9 post-merge/canonical-completion/cleanup/idempotency behavior.
+
+Spec Kit and Product CI remain independent gates. A final material feature freeze requires Spec Kit + Engineering Graph + Product CI green on the exact same final HEAD, plus no required Human Async Gate remaining `PENDING`.
