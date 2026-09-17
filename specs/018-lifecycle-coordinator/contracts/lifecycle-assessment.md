@@ -36,6 +36,7 @@ A later phase is reported only when the evidence owned by that tier exists and i
 Closed V1 vocabulary:
 
 - `prepare_execution`
+- `start_execution`
 - `wait_for_execution`
 - `repair_execution`
 - `run_validation`
