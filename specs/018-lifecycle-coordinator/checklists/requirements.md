@@ -1,0 +1,23 @@
+# Requirements Checklist: Lifecycle Coordinator V10
+
+- [x] Spec exists before implementation.
+- [x] Authority boundary is explicit and read-only.
+- [x] Canonical Git/Spec Kit remains authoritative.
+- [x] Human Async Gates remain a separate evidence class.
+- [x] Required PENDING human gates block readiness at the applicable boundary.
+- [x] CI cannot self-satisfy a human gate.
+- [x] Phase vocabulary is closed/versioned.
+- [x] Next-action vocabulary is closed/versioned.
+- [x] Contradictory identity fails closed.
+- [x] Later derived evidence does not backfill earlier authority.
+- [x] Neo4j is not lifecycle authority.
+- [x] Product runtime remains independent of Engineering Graph tooling.
+- [x] Dirty worktree / cleanup authority remains owned by V9.
+- [x] PR merge authority remains human/external.
+- [x] Continuation output is derived and freshness-bound.
+- [ ] Implementation evidence mapped in `analysis.md`.
+- [ ] Regression evidence recorded in `convergence.md`.
+- [ ] Spec Kit green on final HEAD.
+- [ ] Engineering Graph green on final HEAD.
+- [ ] Product CI green on final HEAD.
+- [ ] Human Async Gate classification completed for Spec 018.
