@@ -18,6 +18,7 @@ from .worktrees import find_worktree, is_worktree_dirty, list_worktrees, remove_
 
 RECEIPT_VERSION = "1"
 RECEIPT_STATUSES = frozenset({"reconciled", "blocked", "finalized"})
+LEASE_MISSING_BLOCKER = "matching active lease is missing"
 
 
 class PostPublicationError(RuntimeError):
@@ -443,10 +444,11 @@ def reconcile_post_publication(
                 blockers.append("canonical Task is not complete in merged base")
 
     lease = _matching_lease(settings, record, root_override=root_override)
+    cleanup_authorized = bool(existing and existing.lease_released)
     already_finalized = bool(existing and existing.status == "finalized" and existing.lease_released)
     lease_active = lease is not None
-    if not lease_active and not already_finalized:
-        blockers.append("matching active lease is missing")
+    if not lease_active and not cleanup_authorized:
+        blockers.append(LEASE_MISSING_BLOCKER)
 
     worktrees = list_worktrees(settings.repo_root)
     descriptor = find_worktree(worktrees, path=Path(record.worktree_path))
@@ -528,8 +530,13 @@ def finalize_post_publication(
             return existing
 
     result = reconcile_post_publication(settings, publication_id, root_override=root_override)
-    if result.blockers and not result.already_finalized:
-        raise PostPublicationError("Post-publication finalization blocked: " + "; ".join(result.blockers))
+    effective_blockers = tuple(
+        blocker
+        for blocker in result.blockers
+        if not (existing is not None and existing.lease_released and blocker == LEASE_MISSING_BLOCKER)
+    )
+    if effective_blockers:
+        raise PostPublicationError("Post-publication finalization blocked: " + "; ".join(effective_blockers))
 
     receipt = existing or _receipt_from_result(result)
     now = _utc_now()
@@ -537,7 +544,14 @@ def finalize_post_publication(
     if not receipt.lease_released:
         root = execution_root(settings, root_override)
         release_lease(root / "leases.json", repository=settings.repository_id, task_id=receipt.task_id)
-        receipt = replace(receipt, lease_released=True, status="finalized", block_reason=None, updated_at=now, finished_at=now)
+        receipt = replace(
+            receipt,
+            lease_released=True,
+            status="finalized",
+            block_reason=None,
+            updated_at=now,
+            finished_at=now,
+        )
         save_receipt(settings, receipt, root_override=root_override)
 
     if remove and not receipt.worktree_removed:
@@ -553,7 +567,14 @@ def finalize_post_publication(
                 )
                 save_receipt(settings, blocked, root_override=root_override)
                 raise PostPublicationError(blocked.block_reason or "worktree cleanup blocked")
-            receipt = replace(receipt, worktree_removed=True, status="finalized", block_reason=None, updated_at=_utc_now())
+            receipt = replace(
+                receipt,
+                worktree_removed=True,
+                status="finalized",
+                block_reason=None,
+                updated_at=_utc_now(),
+                finished_at=receipt.finished_at or _utc_now(),
+            )
             save_receipt(settings, receipt, root_override=root_override)
             return receipt
         if is_worktree_dirty(worktree_path):
@@ -577,6 +598,12 @@ def finalize_post_publication(
         save_receipt(settings, receipt, root_override=root_override)
 
     if receipt.status != "finalized":
-        receipt = replace(receipt, status="finalized", block_reason=None, updated_at=_utc_now(), finished_at=_utc_now())
+        receipt = replace(
+            receipt,
+            status="finalized",
+            block_reason=None,
+            updated_at=_utc_now(),
+            finished_at=receipt.finished_at or _utc_now(),
+        )
         save_receipt(settings, receipt, root_override=root_override)
     return receipt
