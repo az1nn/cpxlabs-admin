@@ -23,6 +23,17 @@ Trust sources in this order:
 
 The current verifiable system state is canonical. A handoff is only the last known hypothesis.
 
+## Canonical skill source
+
+This repository-owned file is the **single procedural source of truth for SIGA**.
+
+- Do not create or maintain a second SIGA skill copy in ChatGPT app state, Library, Project settings, memory, another local registry, or any parallel knowledge store.
+- Memory and chat may retain only a pointer/behavioral reminder that this repository skill must be read and followed; they must not become an independent SIGA specification.
+- When the repository skill and remembered/chat wording differ, verify the repository version and follow the repository skill.
+- Evolve SIGA by editing this repository skill through the normal repository workflow rather than synchronizing multiple copies.
+- Per-workstream handoffs remain allowed: they record project state/delta, not a second definition of the SIGA protocol.
+
+
 ## 1. RECONCILE
 
 Before doing new work, reconstruct the current state from every relevant source that is actually available.
