@@ -8,10 +8,10 @@
 
 ## Phase 1 — Setup and authority boundary
 
-- [ ] T001 Add ADR-0027 at `docs/adr/0027-remote-branch-cleanup-authority-boundary.md`
-- [ ] T002 Add V11 architecture document at `docs/architecture/REMOTE_BRANCH_CLEANUP.md`
-- [ ] T003 Update `engineering-graph/AGENTS.md` with V11 authority/non-authority rules (depends: T001)
-- [ ] T004 Update `engineering-graph/README.md` with V11 CLI/operator positioning (depends: T002)
+- [x] T001 Add ADR-0027 at `docs/adr/0027-remote-branch-cleanup-authority-boundary.md`
+- [x] T002 Add V11 architecture document at `docs/architecture/REMOTE_BRANCH_CLEANUP.md`
+- [x] T003 Update `engineering-graph/AGENTS.md` with V11 authority/non-authority rules (depends: T001)
+- [x] T004 Update `engineering-graph/README.md` with V11 CLI/operator positioning (depends: T002)
 
 ## Phase 2 — Foundational contracts
 
