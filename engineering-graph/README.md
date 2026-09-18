@@ -52,11 +52,14 @@ V9 Post-Publication Lifecycle                           reconcile/release/clean 
                          |
                          v
 V10 Lifecycle Coordinator                               read-only phase/next-action projection
+                         |
+                         v
+V11 Remote Branch Cleanup                                explicit guarded remote-head deletion
 
 V4 GraphRAG is an orthogonal read-only semantic-discovery sidecar over tracked repository content and existing deterministic graph evidence.
 ```
 
-Each layer may consume evidence from the preceding layer but does not silently acquire authority owned by the next layer or by humans. V10 composes the existing evidence tiers but owns no mutation authority at all.
+Each layer may consume evidence from the preceding layer but does not silently acquire authority owned by the next layer or by humans. V10 composes the existing evidence tiers but owns no mutation authority at all. V11 is a separate narrow mutation tier whose only new authority is guarded deletion of the exact publication-owned remote head after finalized V9 evidence.
 
 ## Core graph commands
 
@@ -252,6 +255,34 @@ V10 does not advance the lifecycle. It never acquires/releases leases, creates/r
 
 See `docs/architecture/LIFECYCLE_COORDINATOR.md`, ADR-0026, and `specs/018-lifecycle-coordinator/contracts/lifecycle-assessment.md`.
 
+
+## V11 Remote Branch Cleanup
+
+Read-only readiness:
+
+```bash
+graph-engineering remote-cleanup-status \
+  --publication <PUBLICATION-ID> \
+  --json
+```
+
+Explicit guarded deletion:
+
+```bash
+graph-engineering remote-cleanup-finalize \
+  --publication <PUBLICATION-ID> \
+  --delete-remote-branch \
+  --json
+```
+
+V11 derives the target remote branch and expected commit SHA from V8 publication evidence and requires matching finalized V9 evidence. Status is strictly read-only. Finalize re-checks fresh remote state and may delete only the exact publication-owned `refs/heads/<branch>` when it still equals the expected publication SHA.
+
+The mutation is compare-and-swap guarded; a concurrent remote update must fail closed. V11 never falls back to an unconditional delete, never deletes the base/default branch, local branches, tags or sibling refs, never releases leases/removes worktrees, and never bypasses remote branch policy.
+
+Already-absent remote state is idempotent terminal evidence. A branch recreated after successful cleanup is treated as new conflicting state rather than being deleted from an old receipt.
+
+See `docs/architecture/REMOTE_BRANCH_CLEANUP.md`, ADR-0027, and `specs/019-remote-branch-cleanup/contracts/remote-cleanup.md`.
+
 ## Human Async Gates and Continuation Prompts
 
 Human/manual/external acceptance that cannot be synchronously proven is documented through `docs/ai/human-async-gates.md`.
@@ -275,6 +306,7 @@ context-packages/
   validation/
   publication/
   post-publication/
+  remote-cleanup/
 ```
 
 V10 assessments are computed on demand and do not create a new canonical lifecycle-state directory.
@@ -297,6 +329,7 @@ Engineering Graph CI preserves the whole control-plane baseline:
 - V7 validation identity/fingerprint behavior;
 - V8 non-force publication/resume behavior;
 - V9 post-merge/canonical-completion/cleanup/idempotency behavior;
-- V10 lifecycle reducer, identity, Human Async Gate, continuation and read-only status behavior.
+- V10 lifecycle reducer, identity, Human Async Gate, continuation and read-only status behavior;
+- V11 exact-ref inspection, guarded deletion race protection, idempotency and unrelated-ref preservation.
 
 Spec Kit and Product CI remain independent gates. A final material feature freeze requires Spec Kit + Engineering Graph + Product CI green on the exact same final HEAD, plus no required Human Async Gate remaining `PENDING`.
