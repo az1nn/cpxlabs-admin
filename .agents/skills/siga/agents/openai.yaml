@@ -1,0 +1,7 @@
+interface:
+  display_name: "SIGA"
+  short_description: "Reconcilia o estado real e continua o workstream correto"
+  default_prompt: "Siga"
+
+policy:
+  allow_implicit_invocation: true
