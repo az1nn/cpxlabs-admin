@@ -15,13 +15,13 @@
 
 ## Phase 2 — Foundational contracts
 
-- [ ] T005 Define versioned V11 assessment/receipt contracts in `engineering-graph/src/engineering_graph/remote_cleanup.py`
-- [ ] T006 Define closed blocker/state/next-action vocabularies in `engineering-graph/src/engineering_graph/remote_cleanup.py`
-- [ ] T007 Implement strict cross-artifact identity validation for V8 publication + finalized V9 receipt in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
-- [ ] T008 Implement target/base/default branch safety validation in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
-- [ ] T009 Implement matching active-lease/worktree safety checks in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
-- [ ] T010 Implement exact-ref remote inspection with argv-only `shell=False` execution in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
-- [ ] T011 Implement read-only assessment reducer in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T007,T008,T009,T010)
+- [x] T005 Define versioned V11 assessment/receipt contracts in `engineering-graph/src/engineering_graph/remote_cleanup.py`
+- [x] T006 Define closed blocker/state/next-action vocabularies in `engineering-graph/src/engineering_graph/remote_cleanup.py`
+- [x] T007 Implement strict cross-artifact identity validation for V8 publication + finalized V9 receipt in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
+- [x] T008 Implement target/base/default branch safety validation in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
+- [x] T009 Implement matching active-lease/worktree safety checks in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
+- [x] T010 Implement exact-ref remote inspection with argv-only `shell=False` execution in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T005)
+- [x] T011 Implement read-only assessment reducer in `engineering-graph/src/engineering_graph/remote_cleanup.py` (depends: T007,T008,T009,T010)
 
 ## Phase 3 — User Story 1: Assess remote cleanup readiness (P1)
 
