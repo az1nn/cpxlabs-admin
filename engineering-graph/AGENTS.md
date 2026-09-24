@@ -127,6 +127,46 @@ Rules:
 
 See `docs/architecture/LIFECYCLE_COORDINATOR.md`, `specs/018-lifecycle-coordinator/contracts/lifecycle-assessment.md`, and ADR-0026.
 
+
+## Remote Branch Cleanup V11
+
+V11 is a narrowly scoped destructive Git authority tier after finalized V9 evidence. It exists only to inspect and, under explicit operator intent, remove the exact remote feature branch owned by one V8 publication. It does not turn V10 into a mutation tier.
+
+Read-only assessment:
+
+```bash
+graph-engineering remote-cleanup-status \
+  --publication <PUBLICATION-ID> \
+  --json
+```
+
+Explicit guarded deletion:
+
+```bash
+graph-engineering remote-cleanup-finalize \
+  --publication <PUBLICATION-ID> \
+  --delete-remote-branch \
+  --json
+```
+
+Rules:
+
+- derive repository, Spec, Task, branch, base and expected commit SHA from matching V8/V9 evidence; arbitrary operator-supplied branch identity is not deletion authority;
+- require a finalized matching V9 receipt before remote deletion can become ready;
+- reject the configured base branch and repository default branch before issuing a mutation;
+- block when matching local lease/worktree ownership still makes the remote branch unsafe to remove; V11 never releases leases or removes worktrees itself;
+- inspect one exact `refs/heads/<branch>` using argv execution with `shell=False`;
+- a present remote head must still equal the V8 publication commit SHA;
+- deletion requires explicit intent and expected-SHA compare-and-swap protection at mutation time;
+- never fall back to unconditional `git push --delete` / unguarded force when the guarded delete fails;
+- never delete local branches, tags, sibling refs, PRs, leases or worktrees;
+- never bypass branch protection/rulesets;
+- an already-absent branch is idempotent terminal evidence and requires no destructive retry;
+- a branch recreated after a prior successful cleanup is new state and the old receipt does not authorize deleting it;
+- `.execution/remote-cleanup/` receipts are derived audit/recovery evidence, never canonical Task or Neo4j truth.
+
+See `docs/architecture/REMOTE_BRANCH_CLEANUP.md`, `specs/019-remote-branch-cleanup/contracts/remote-cleanup.md`, and ADR-0027.
+
 ## Continuation Prompts
 
 Follow `docs/ai/continuation-prompt-template.md` and `docs/ai/context-handoff.md`.
