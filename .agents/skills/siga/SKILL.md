@@ -141,7 +141,7 @@ During SIGA execution:
 - Never create a new workstream before reconciling the existing one.
 - Never trust chat history over canonical state.
 - Never change behavior merely to make a gate green without resolving the underlying cause.
-- Never cross an explicit human gate automatically.
+- Never cross an explicit human gate automatically unless a standing operator authorization explicitly covers that gate and all stated preconditions are freshly verified.
 - Never delete context required to reconstruct decisions.
 - When sources conflict, current canonical state wins.
 
@@ -153,7 +153,7 @@ Examples:
 
 - Design Gate;
 - visual approval;
-- manual merge authorization;
+- manual merge authorization when no standing merge authorization exists;
 - architectural decision;
 - production release;
 - cost approval;
@@ -165,6 +165,20 @@ Present exactly:
 - evidence;
 - decision required;
 - effect of each relevant alternative.
+
+### Standing merge authority — this repository
+
+Effective 2026-09-24, the operator grants SIGA standing authority to resolve PR branch conflicts and merge without asking for additional confirmation when all of the following are true:
+
+- the exact PR/repository/base/head identity has been freshly reconciled from real state;
+- any branch conflict has been resolved against the current base without masking or discarding unrelated changes;
+- every required automated test/check/gate for the resulting exact HEAD has passed;
+- no separate required human/manual acceptance gate remains PENDING;
+- repository protections/rulesets permit the merge.
+
+Before merging, re-check mergeability and the exact HEAD. Use expected-head protection when the platform supports it. After merging, verify the PR is actually merged and the base contains the merge result.
+
+This standing authority does **not** authorize bypassing branch protection, force-pushing over concurrent work, suppressing failed checks, self-waiving unrelated human gates, or declaring success from stale evidence.
 
 ## Durable handoff
 
