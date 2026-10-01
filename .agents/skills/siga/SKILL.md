@@ -104,6 +104,69 @@ Derive the next logical unit from the roadmap, spec, tasks, issues, handoff, dep
 
 Only in this mode may a new branch, PR, task, spec, or workstream be started.
 
+## 2.5 ROADMAP + ARCHITECTURE HARD FENCE
+
+When a workstream declares an ordered roadmap, dependency state, or architecture decision, SIGA treats it as an execution fence rather than advisory context.
+
+### Current-item write fence
+
+Before **any mutation**, derive and state internally:
+
+1. the active roadmap/spec artifact;
+2. the earliest item that is not `PASS`/`DONE`;
+3. the exact Task/Requirement/ADR scope allowed by that item;
+4. any locked architecture/runtime/renderer/ownership decisions that constrain implementation.
+
+If the roadmap declares `STRICT_SEQUENTIAL`, `CURRENT/LOCKED/PASS`, ordered dependencies, or equivalent semantics:
+
+- only the current/earliest non-PASS item may be mutated;
+- `WATCH`, running CI, pending review, deployment, capture or another external gate does **not** authorize successor preparation;
+- do not open, refresh, implement, spec, preflight, branch, PR, issue or handoff work for a locked successor unless the roadmap itself explicitly authorizes that exact action;
+- generic advice to “advance specs while waiting” is subordinate to the project-local strict roadmap;
+- a successor may unlock only after the predecessor's required gates are verified and its `PASS` is persisted canonically.
+
+A branch or PR being “spec-only” does not exempt it from this fence.
+
+### Architecture ownership is semantic, not cosmetic
+
+A final architecture/renderer/runtime ownership decision controls **how implementation is derived**, not merely which dependency appears in the final files.
+
+When a lane is marked `REFERENCE`, `FROZEN`, `ARCHIVED`, `EVIDENCE`, prototype-only, or superseded:
+
+- it may be inspected for historical evidence, measurements or lessons;
+- it must not silently remain the production scaffold, composition authority, implementation template or mental model after another architecture has been selected;
+- do not claim a migration by keeping the legacy implementation structure and adding cosmetic treatment in the selected technology;
+- derive new production work from the selected architecture plus current accepted product/design/spec target;
+- reuse legacy code/assets only when the active spec explicitly identifies that reuse as valid.
+
+Example invariant:
+
+```text
+accepted target + selected architecture
+        -> native decomposition
+        -> native implementation
+        -> exact-head verification
+
+NOT
+
+legacy prototype/blockout
+        -> cosmetic restyling
+        -> "migration complete"
+```
+
+### Drift recovery
+
+If live state reveals that work crossed a roadmap or architecture fence:
+
+1. stop expanding the drift;
+2. keep the correction inside the **current** roadmap item;
+3. record the divergence and the authoritative decision it violated;
+4. close/abandon successor work that was created while locked, unless the canonical roadmap is explicitly amended to permit it;
+5. decide whether the current implementation can be structurally corrected or requires a clean rebase/rebuild boundary;
+6. verify the corrected path against exact-head evidence before resuming normal progression.
+
+Do not preserve drift merely because code already exists or prior effort was invested. Existing work is evidence, not entitlement.
+
 ## 3. EXECUTE
 
 After selecting the mode:
@@ -200,6 +263,8 @@ BASE:
 BRANCH / ENV:
 PR / MR / TASK:
 SPEC / ADR:
+ROADMAP FENCE:
+ARCHITECTURE LOCK:
 
 DONE:
 VERIFY:
