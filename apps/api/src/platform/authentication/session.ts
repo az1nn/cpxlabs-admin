@@ -1,39 +1,51 @@
 import { createPrincipal, type RequestContext } from '@cpxlabs-admin/authorization'
 import type { SessionResponse } from '@cpxlabs-admin/contracts'
-import { fromNodeHeaders } from 'better-auth/node'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 
 import { AppError } from '../errors.js'
 import type { AccessProfileRepository } from '../authorization/access-profile.repository.js'
 import { emitSecurityEvent } from './security-events.js'
-import type { AppAuth } from './auth.js'
+import type { IdentityProvider } from './identity-provider.js'
 
 export type RequestContextResolver = (
   request: FastifyRequest,
 ) => Promise<RequestContext>
 
+function authenticationRequired(request: FastifyRequest): never {
+  emitSecurityEvent(request, 'authentication.required')
+  throw new AppError({
+    code: 'AUTHENTICATION_REQUIRED',
+    statusCode: 401,
+    message: 'Authentication is required',
+  })
+}
+
+function hasBearerToken(request: FastifyRequest): boolean {
+  const authorization = request.headers.authorization
+  if (!authorization) return false
+
+  const [scheme, token, ...rest] = authorization.trim().split(/\s+/)
+  return scheme?.toLowerCase() === 'bearer' && Boolean(token) && rest.length === 0
+}
+
 export function createRequestContextResolver(options: {
-  auth: AppAuth
+  identityProvider: IdentityProvider
   accessProfiles: AccessProfileRepository
 }): RequestContextResolver {
   return async (request) => {
-    const providerSession = await options.auth.api.getSession({
-      headers: fromNodeHeaders(request.headers),
-    })
-
-    if (!providerSession) {
-      emitSecurityEvent(request, 'authentication.required')
-      throw new AppError({
-        code: 'AUTHENTICATION_REQUIRED',
-        statusCode: 401,
-        message: 'Authentication is required',
-      })
+    if (!hasBearerToken(request)) {
+      return authenticationRequired(request)
     }
 
-    const accessProfile = await options.accessProfiles.getByUserId(providerSession.user.id)
+    const identity = await options.identityProvider.authenticate(request)
+    if (!identity) {
+      return authenticationRequired(request)
+    }
+
+    const accessProfile = await options.accessProfiles.getByUserId(identity.id)
     if (!accessProfile || accessProfile.status !== 'active') {
       emitSecurityEvent(request, 'access.disabled', {
-        userId: providerSession.user.id,
+        userId: identity.id,
       })
       throw new AppError({
         code: 'ACCESS_DISABLED',
@@ -44,9 +56,9 @@ export function createRequestContextResolver(options: {
 
     return {
       principal: createPrincipal({
-        id: providerSession.user.id,
-        email: providerSession.user.email,
-        name: providerSession.user.name,
+        id: identity.id,
+        email: identity.email,
+        name: identity.name,
         role: accessProfile.role,
       }),
     }
