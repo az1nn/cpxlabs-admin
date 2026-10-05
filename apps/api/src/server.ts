@@ -24,7 +24,7 @@ const [
   { PrismaOpportunityRepository },
   { PrismaOpportunityWorkflowService },
   { PrismaAuditRepository },
-  { createAuth },
+  { createClerkIdentityProvider, registerClerkAuthentication },
   { createRequestContextResolver },
   { PrismaAccessProfileRepository },
   { createAuthorizationGuards },
@@ -36,7 +36,7 @@ const [
   import('./modules/opportunities/opportunity.prisma-repository.js'),
   import('./modules/opportunities/opportunity.workflow-service.js'),
   import('./platform/audit/audit.prisma-repository.js'),
-  import('./platform/authentication/auth.js'),
+  import('./platform/authentication/clerk-identity-provider.js'),
   import('./platform/authentication/session.js'),
   import('./platform/authorization/access-profile.repository.js'),
   import('./platform/authorization/guards.js'),
@@ -49,16 +49,20 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is required by the authenticated reference API')
 }
 
-const secret = process.env.BETTER_AUTH_SECRET?.trim()
-if (!secret || secret.length < 32) {
+const clerkPublishableKey = process.env.CLERK_PUBLISHABLE_KEY?.trim()
+if (!clerkPublishableKey) {
   await telemetry.shutdown()
-  throw new Error('BETTER_AUTH_SECRET must contain at least 32 characters')
+  throw new Error('CLERK_PUBLISHABLE_KEY is required by the authenticated reference API')
+}
+
+const clerkSecretKey = process.env.CLERK_SECRET_KEY?.trim()
+if (!clerkSecretKey) {
+  await telemetry.shutdown()
+  throw new Error('CLERK_SECRET_KEY is required by the authenticated reference API')
 }
 
 const port = Number(process.env.PORT ?? 3001)
 const host = process.env.HOST ?? '0.0.0.0'
-const betterAuthUrl = process.env.BETTER_AUTH_URL?.trim() ?? `http://127.0.0.1:${port}`
-const appOrigin = process.env.APP_ORIGIN?.trim() ?? 'http://127.0.0.1:4173'
 
 const prisma = createPrismaClient(databaseUrl)
 const customerRepository = new PrismaCustomerRepository(prisma)
@@ -67,13 +71,11 @@ const customerMutationService = new PrismaCustomerMutationService(prisma)
 const opportunityRepository = new PrismaOpportunityRepository(prisma)
 const opportunityWorkflow = new PrismaOpportunityWorkflowService(prisma)
 const accessProfiles = new PrismaAccessProfileRepository(prisma)
-const auth = createAuth({
-  prisma,
-  baseURL: betterAuthUrl,
-  secret,
-  trustedOrigins: [appOrigin],
+const identityProvider = createClerkIdentityProvider()
+const resolveRequestContext = createRequestContextResolver({
+  identityProvider,
+  accessProfiles,
 })
-const resolveRequestContext = createRequestContextResolver({ auth, accessProfiles })
 const authorization = createAuthorizationGuards(resolveRequestContext)
 
 const app = buildApp({
@@ -84,7 +86,11 @@ const app = buildApp({
   auditRepository,
   authorization,
   authentication: {
-    auth,
+    register: (instance) =>
+      registerClerkAuthentication(instance, {
+        publishableKey: clerkPublishableKey,
+        secretKey: clerkSecretKey,
+      }),
     resolveRequestContext,
   },
 })
