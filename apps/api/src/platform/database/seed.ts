@@ -1,7 +1,6 @@
 import type { ApplicationRole } from '@cpxlabs-admin/contracts'
 import { loadEnvFile } from 'node:process'
 
-import { createAuth } from '../authentication/auth.js'
 import { PrismaAccessProfileRepository } from '../authorization/access-profile.repository.js'
 import { createPrismaClient } from './prisma.js'
 
@@ -23,16 +22,6 @@ const databaseUrl =
   'postgresql://postgres:postgres@127.0.0.1:5432/cpxlabs_admin'
 
 const prisma = createPrismaClient(databaseUrl)
-
-const referenceUsers: ReadonlyArray<{
-  name: string
-  email: string
-  role: ApplicationRole
-}> = [
-  { name: 'Reference Admin', email: 'admin@cpxlabs.local', role: 'admin' },
-  { name: 'Reference Manager', email: 'manager@cpxlabs.local', role: 'manager' },
-  { name: 'Reference Viewer', email: 'viewer@cpxlabs.local', role: 'viewer' },
-]
 
 async function seedCustomers() {
   await prisma.customer.upsert({
@@ -68,57 +57,60 @@ async function seedCustomers() {
   })
 }
 
-async function seedReferenceUsers() {
-  const secret = process.env.BETTER_AUTH_SECRET?.trim()
-  const password = process.env.SEED_AUTH_PASSWORD?.trim()
+async function seedReferenceAccessProfiles() {
+  const accessProfiles = new PrismaAccessProfileRepository(prisma)
+  const configured: Array<{
+    userId: string | undefined
+    role: ApplicationRole
+    envName: string
+  }> = [
+    {
+      userId: process.env.SEED_CLERK_ADMIN_USER_ID?.trim(),
+      role: 'admin',
+      envName: 'SEED_CLERK_ADMIN_USER_ID',
+    },
+    {
+      userId: process.env.SEED_CLERK_MANAGER_USER_ID?.trim(),
+      role: 'manager',
+      envName: 'SEED_CLERK_MANAGER_USER_ID',
+    },
+    {
+      userId: process.env.SEED_CLERK_VIEWER_USER_ID?.trim(),
+      role: 'viewer',
+      envName: 'SEED_CLERK_VIEWER_USER_ID',
+    },
+  ]
 
-  if (!secret || !password) {
+  const present = configured.filter(
+    (entry): entry is typeof entry & { userId: string } => Boolean(entry.userId),
+  )
+
+  if (present.length === 0) {
     console.warn(
-      'Skipping reference auth users because BETTER_AUTH_SECRET or SEED_AUTH_PASSWORD is not configured.',
+      'Skipping reference access profiles because no SEED_CLERK_*_USER_ID is configured.',
     )
     return
   }
 
-  const baseURL = process.env.BETTER_AUTH_URL?.trim() ?? 'http://127.0.0.1:3001'
-  const appOrigin = process.env.APP_ORIGIN?.trim() ?? 'http://127.0.0.1:4173'
-  const auth = createAuth({
-    prisma,
-    baseURL,
-    secret,
-    trustedOrigins: [appOrigin],
-    allowSignUp: true,
-  })
-  const accessProfiles = new PrismaAccessProfileRepository(prisma)
-
-  for (const referenceUser of referenceUsers) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email: referenceUser.email },
-      select: { id: true },
-    })
-    let userId = existingUser?.id
-
-    if (!userId) {
-      const result = await auth.api.signUpEmail({
-        body: {
-          name: referenceUser.name,
-          email: referenceUser.email,
-          password,
-        },
-      })
-      userId = result.user.id
-    }
-
+  for (const entry of present) {
     await accessProfiles.upsert({
-      userId,
-      role: referenceUser.role,
+      userId: entry.userId,
+      role: entry.role,
       status: 'active',
     })
+  }
+
+  const missing = configured
+    .filter((entry) => !entry.userId)
+    .map((entry) => entry.envName)
+  if (missing.length > 0) {
+    console.warn(`Reference access profiles not seeded for: ${missing.join(', ')}`)
   }
 }
 
 try {
   await seedCustomers()
-  await seedReferenceUsers()
+  await seedReferenceAccessProfiles()
 } finally {
   await prisma.$disconnect()
 }
