@@ -1,0 +1,49 @@
+name: Resolve Clerk dependencies
+
+on:
+  push:
+    branches:
+      - feat/020-clerk-authentication
+    paths:
+      - .github/workflows/clerk-dependencies.yml
+
+permissions:
+  contents: write
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: feat/020-clerk-authentication
+          persist-credentials: true
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6.0.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Resolve current Clerk SDK releases
+        run: |
+          pnpm --filter @cpxlabs-admin/web add @clerk/react@latest --save-exact
+          pnpm --filter @cpxlabs-admin/api add @clerk/fastify@latest --save-exact
+          pnpm --filter @cpxlabs-admin/web remove better-auth
+          pnpm --filter @cpxlabs-admin/api remove better-auth @better-auth/prisma-adapter
+
+      - name: Persist exact dependency graph
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/web/package.json apps/api/package.json pnpm-lock.yaml
+          if git diff --cached --quiet; then
+            echo "Dependency graph already current."
+            exit 0
+          fi
+          git commit -m "chore(auth): resolve latest Clerk SDKs"
+          git push origin HEAD:feat/020-clerk-authentication
