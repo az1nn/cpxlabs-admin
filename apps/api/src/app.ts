@@ -1,4 +1,4 @@
-import Fastify from 'fastify'
+import Fastify, { type FastifyInstance } from 'fastify'
 
 import { InMemoryCustomerMutationService, type CustomerMutationService } from './modules/customers/customer.mutation-service.js'
 import { InMemoryCustomerRepository, type CustomerRepository } from './modules/customers/customer.repository.js'
@@ -8,8 +8,6 @@ import { opportunityRoutes } from './modules/opportunities/opportunity.routes.js
 import { InMemoryOpportunityWorkflowService, type OpportunityWorkflowService } from './modules/opportunities/opportunity.workflow-service.js'
 import { InMemoryAuditRepository, type AuditRepository } from './platform/audit/audit.repository.js'
 import { auditRoutes } from './platform/audit/audit.routes.js'
-import type { AppAuth } from './platform/authentication/auth.js'
-import { registerAuthenticationRoutes } from './platform/authentication/fastify-auth.js'
 import { registerApplicationSessionRoute, type RequestContextResolver } from './platform/authentication/session.js'
 import type { AuthorizationGuards } from './platform/authorization/guards.js'
 import { createUnauthenticatedGuards } from './platform/authorization/guards.js'
@@ -24,7 +22,7 @@ export type BuildAppOptions = {
   auditRepository?: AuditRepository
   authorization?: AuthorizationGuards
   authentication?: {
-    auth: AppAuth
+    register?: (app: FastifyInstance) => void
     resolveRequestContext: RequestContextResolver
   }
 }
@@ -38,10 +36,13 @@ export function buildApp(options: BuildAppOptions = {}) {
   installCorrelation(app)
   installErrorHandler(app)
 
+  if (options.authentication?.register) {
+    options.authentication.register(app)
+  }
+
   app.get('/health', { config: { otel: false } }, async () => ({ status: 'ok' }))
 
   if (options.authentication) {
-    void registerAuthenticationRoutes(app, options.authentication.auth)
     void registerApplicationSessionRoute(
       app,
       options.authentication.resolveRequestContext,
