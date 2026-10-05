@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 
 import { createPrismaClient } from '../database/prisma.js'
 import { PrismaAccessProfileRepository } from './access-profile.repository.js'
@@ -9,26 +9,14 @@ const describeDatabase = databaseUrl ? describe : describe.skip
 describeDatabase('PrismaAccessProfileRepository', () => {
   const prisma = createPrismaClient(databaseUrl!)
   const repository = new PrismaAccessProfileRepository(prisma)
-  const userId = `access-profile-${Date.now()}`
-  const email = `${userId}@example.com`
-
-  beforeAll(async () => {
-    await prisma.user.create({
-      data: {
-        id: userId,
-        name: 'Access Profile Test',
-        email,
-        emailVerified: true,
-      },
-    })
-  })
+  const userId = `user_clerk_access_profile_${Date.now()}`
 
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { id: userId } })
+    await prisma.accessProfile.deleteMany({ where: { userId } })
     await prisma.$disconnect()
   })
 
-  it('creates, changes role, disables and restores an access profile', async () => {
+  it('stores an external identity id without requiring a local provider user row', async () => {
     await expect(repository.getByUserId(userId)).resolves.toBeNull()
 
     const created = await repository.upsert({ userId, role: 'viewer' })
