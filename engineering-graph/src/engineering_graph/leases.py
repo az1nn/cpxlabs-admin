@@ -1,10 +1,21 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
+
+try:
+    import fcntl  # POSIX
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None
+
+try:
+    import msvcrt  # Windows
+except ImportError:  # pragma: no cover - POSIX
+    msvcrt = None
 
 from .execution import ExecutionAllocation, validate_execution_allocation
 
@@ -17,6 +28,34 @@ class LeaseRegistryError(RuntimeError):
 
 class LeaseCollisionError(LeaseRegistryError):
     pass
+
+
+@contextmanager
+def _registry_transaction(path: Path) -> Iterator[None]:
+    """Serialize read-check-write locally, including across OS processes.
+
+    Lock a stable sibling inode: the registry itself is atomically replaced.
+    This is a local advisory lock, not a distributed lease.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_name(f".{path.name}.lock")
+    with lock_path.open("a+b") as handle:
+        if fcntl is not None:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        elif msvcrt is not None:  # pragma: no cover - Windows
+            handle.seek(0)
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:  # pragma: no cover - unsupported runtime
+            raise LeaseRegistryError("No supported cross-process file locking API")
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            else:  # pragma: no cover - Windows
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,16 +172,17 @@ def acquire_lease(path: Path, allocation: ExecutionAllocation) -> ExecutionAlloc
     if allocation.lease_status not in {"planned", "active"}:
         raise LeaseRegistryError("Only planned/active allocations can be acquired")
     validate_execution_allocation(allocation)
-    registry = load_registry(path, expected_repository=allocation.repository)
-    assert_allocation_available(registry, allocation)
-    timestamp = _utc_now()
-    active = replace(
-        allocation,
-        lease_status="active",
-        updated_at=timestamp,
-    )
-    save_registry(path, LeaseRegistry(registry.repository, registry.leases + (active,)))
-    return active
+    with _registry_transaction(path):
+        registry = load_registry(path, expected_repository=allocation.repository)
+        assert_allocation_available(registry, allocation)
+        timestamp = _utc_now()
+        active = replace(
+            allocation,
+            lease_status="active",
+            updated_at=timestamp,
+        )
+        save_registry(path, LeaseRegistry(registry.repository, registry.leases + (active,)))
+        return active
 
 
 def release_lease(
@@ -151,13 +191,14 @@ def release_lease(
     repository: str,
     task_id: str,
 ) -> ExecutionAllocation:
-    registry = load_registry(path, expected_repository=repository)
-    target = active_lease(registry, task_id)
-    if target is None:
-        raise LeaseRegistryError(f"No active lease exists for task {task_id}")
+    with _registry_transaction(path):
+        registry = load_registry(path, expected_repository=repository)
+        target = active_lease(registry, task_id)
+        if target is None:
+            raise LeaseRegistryError(f"No active lease exists for task {task_id}")
 
-    timestamp = _utc_now()
-    replacement = replace(target, lease_status="released", updated_at=timestamp)
-    leases = tuple(replacement if lease is target else lease for lease in registry.leases)
-    save_registry(path, LeaseRegistry(registry.repository, leases))
-    return replacement
+        timestamp = _utc_now()
+        replacement = replace(target, lease_status="released", updated_at=timestamp)
+        leases = tuple(replacement if lease is target else lease for lease in registry.leases)
+        save_registry(path, LeaseRegistry(registry.repository, leases))
+        return replacement

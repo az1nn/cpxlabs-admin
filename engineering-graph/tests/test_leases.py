@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Barrier, BrokenBarrierError
 import unittest
+from unittest.mock import patch
+
+import engineering_graph.leases as leases_module
 
 from engineering_graph.execution import planned_allocation
 from engineering_graph.leases import (
@@ -55,6 +60,37 @@ class LeaseTests(unittest.TestCase):
 
             reacquired = acquire_lease(registry_path, first)
             self.assertEqual(reacquired.lease_status, "active")
+
+    def test_simultaneous_acquire_has_only_one_winner(self) -> None:
+        """Both contenders observe an empty registry unless acquisition is locked."""
+        with TemporaryDirectory() as temp:
+            registry_path = Path(temp) / "leases.json"
+            request = allocation("SPEC-011:T001", Path(temp) / "shared")
+            observe = Barrier(2, timeout=0.5)
+            original_load = leases_module.load_registry
+
+            def competing_read(path: Path, *, expected_repository: str):
+                value = original_load(path, expected_repository=expected_repository)
+                try:
+                    observe.wait()
+                except BrokenBarrierError:
+                    pass
+                return value
+
+            def contender(_: int) -> str:
+                try:
+                    acquire_lease(registry_path, request)
+                    return "acquired"
+                except LeaseCollisionError:
+                    return "collision"
+
+            with patch.object(leases_module, "load_registry", side_effect=competing_read):
+                with ThreadPoolExecutor(max_workers=2) as workers:
+                    results = list(workers.map(contender, range(2)))
+
+            self.assertCountEqual(results, ["acquired", "collision"])
+            registry = load_registry(registry_path, expected_repository="example/project")
+            self.assertEqual(len(registry.active), 1)
 
     def test_branch_and_path_collisions_are_rejected(self) -> None:
         with TemporaryDirectory() as temp:

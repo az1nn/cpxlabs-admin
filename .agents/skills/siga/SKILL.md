@@ -104,6 +104,50 @@ Derive the next logical unit from the roadmap, spec, tasks, issues, handoff, dep
 
 Only in this mode may a new branch, PR, task, spec, or workstream be started.
 
+## 2A. Concurrency, ownership and collision fencing (mandatory)
+
+SIGA may be invoked concurrently by multiple chats, agents, terminals or CI workers. **Reconciliation is not a lock.** A green CI, an empty PR list or a clean default branch never proves that an unfinished feature branch is available for another writer.
+
+### Identify the protected scope
+
+Before any mutation, identify:
+
+- repository + workstream/spec/task identity;
+- exact base and feature branch and their freshly observed HEADs;
+- affected paths, shared generated artifacts and dependent tasks;
+- observable owner/run/session, active processes, pending PRs and remote updates;
+- worktree and lease state wherever the execution environment exposes it.
+
+A branch with incomplete spec/tasks and recent commits is an unfinished execution even without a PR or CI run. Treat rapidly moving or ambiguously owned scope as potentially active. If there is a credible active writer on an overlapping scope, **classify WATCH for that scope** and do not start a second writer, branch, PR, job or implementation. Read-only inspection and a collision handoff are allowed.
+
+### Single-writer rule and parallel waves
+
+**At most one mutating owner per overlapping task, branch or artifact set.** Parallel execution is allowed only for explicitly dependency-ready, conflict-free tasks with separate worktrees/branches and non-overlapping files/generated outputs. A shared integration point, contract, migration, CI workflow or handoff file creates a collision edge until ownership is delegated or the tasks are serialized.
+
+A domain specialist may implement in its domain, but ownership of the affected result must remain with the designated domain owner. Orchestrator owns scheduling and handoffs, not the ability to bypass these conflicts. Work that cannot prove independent ownership is serialized.
+
+### Leases: local versus distributed
+
+- The Engineering Graph V3 `execution-prepare` worktree/lease registry protects allocation **only within its local orchestrator checkout**. It is **not** a distributed cross-chat/cross-host mutex. Never present a local lease or an ordinary issue/label/comment as proof of exclusive remote ownership.
+- Where a shared coordinator is actually deployed, acquire an **atomic compare-and-set or transactional** scoped lease before mutation. Record a unique owner/run ID, scope, fencing generation/token, current revision and expiry/heartbeat. Reject second acquisitions of an overlapping active scope. Validate ownership and fencing generation on every write; expiry alone does not authorize a stale writer to keep writing. Release only the owned lease after a final state check.
+- Where no such distributed coordinator exists, **do not claim a remote lock exists**. Adopt a conservative single-writer policy: sessions seeing current/ambiguous overlapping work remain read-only WATCH; an uncontended owner may resume after fresh reconciliation, but this is cooperative safety, not globally guaranteed exclusivity.
+
+### Every-write freshness and collision response
+
+Before updating any remote/shared branch or file:
+
+1. Re-read its current revision and compare it with the revision observed when selecting the work.
+2. Use conditional writes where supported (file blob SHA, ref expected SHA / force-with-lease, server-side compare-and-set). Write only to the owned feature branch; never blind-write to the default branch.
+3. On a failed condition, unexpected HEAD movement, ownership loss, newly discovered overlap or stale package: **STOP writes immediately**. Reconcile the competing changes, classify WATCH or RESUME as warranted and preserve both sides.
+4. Do not force-push, replace an unrelated file, delete another worker's worktree/lease, auto-close a competing PR or silently rerun the same task. Do not retry a failed conditional write without a full re-read and ownership decision.
+5. Before merge, re-check base and feature HEADs, actual mergeability, required exact-head gates and absence of unresolved ownership/human gates. A successful build on an older commit is not evidence for the new HEAD.
+
+GitHub Actions `concurrency` groups can cancel or serialize redundant **CI runs**, but they do not lock development sessions, branches or file writes. Treat CI serialization and task ownership as separate controls.
+
+### Handoff of contention
+
+Keep the existing CAVEMAN HANDOFF structure; record scope, observed owner (or unknown), branch/base HEADs, lease type (distributed/local/none), paths in contention, active process/check state and next safe action under VERIFY, GATES, BLOCKERS and NEXT. A stale or abandoned scope is not released by guessing elapsed time: prove termination or obtain explicit authorized recovery, preserve unmerged changes and fence out the old writer first. If this cannot be proven, stop at a human ownership gate rather than inventing successful recovery.
+
 ## 3. EXECUTE
 
 After selecting the mode:
